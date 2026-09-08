@@ -1,0 +1,58 @@
+# ==========================================
+# Secrets / environment
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# Python
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# Virtual environments
+# ==========================================
+.venv/
+venv/
+env/
+
+# ==========================================
+# Runtime / SOC generated data
+# ==========================================
+data/*.db
+data/*.db-shm
+data/*.db-wal
+logs/*.json
+logs/*.jsonl
+logs/dead_letter*
+
+# ==========================================
+# Temporary files
+# ==========================================
+*.tmp
+*.temp
+*.bak
+*.swp
+tmp.py
+
+# ==========================================
+# OS / editors
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ==========================================
+# SOC runtime state / generated telemetry
+# ==========================================
+engine/audit.log
+engine/data/ai_memory.json
+engine/data/threat_intel.json

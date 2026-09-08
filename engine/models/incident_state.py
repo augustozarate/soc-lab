@@ -1,0 +1,17 @@
+class IncidentState:
+
+    NEW = "NEW"
+
+    TRIAGED = "TRIAGED"
+
+    INVESTIGATING = "INVESTIGATING"
+
+    CONTAINED = "CONTAINED"
+
+    ESCALATED = "ESCALATED"
+
+    RESOLVED = "RESOLVED"
+
+    CLOSED = "CLOSED"
+
+    REOPENED = "REOPENED"

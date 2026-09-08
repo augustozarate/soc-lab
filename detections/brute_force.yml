@@ -1,0 +1,9 @@
+id: WIN_FAILED_LOGIN
+name: Windows Failed Login
+description: Detect Windows failed login
+
+match:
+  message_contains: "FAILED LOGIN"
+  threshold: 3
+
+severity: HIGH
