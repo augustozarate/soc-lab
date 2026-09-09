@@ -46,6 +46,10 @@ from engine.services.response_policy_engine import (
     ResponsePolicyEngine
 )
 
+from engine.behavior_engine import (
+    BehaviorEngine
+)
+
 def build_services(container):
 
     container.suppressor = (
@@ -93,4 +97,11 @@ def build_services(container):
 
     container.hunter = ThreatHunter(
         container.event_cache
+    )
+
+    container.behavior_engine = (
+        BehaviorEngine(
+            threshold=5,
+            window_seconds=60
+        )
     )

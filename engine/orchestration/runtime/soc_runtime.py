@@ -135,9 +135,31 @@ class SOCRuntime:
                 0
             )
 
-        alerts = (
+        # =====================================
+        # RULE-BASED DETECTION
+        # =====================================
+
+        rule_alerts = (
             self.container.detector
             .evaluate(event)
+        )
+
+        # =====================================
+        # UEBA / BEHAVIORAL DETECTION
+        # =====================================
+
+        ueba_alerts = (
+            self.container.behavior_engine
+            .analyze(event)
+        )
+
+        # =====================================
+        # UNIFIED ALERT FLOW
+        # =====================================
+
+        alerts = (
+            rule_alerts
+            + ueba_alerts
         )
 
         for alert in alerts:

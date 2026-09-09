@@ -56,3 +56,7 @@ Thumbs.db
 engine/audit.log
 engine/data/ai_memory.json
 engine/data/threat_intel.json
+
+# SOC runtime memory / threat intelligence cache
+data/ai_memory.json
+data/threat_intel.json
