@@ -1,37 +1,54 @@
-$base = "C:\soc-lab"
-New-Item -ItemType Directory -Force -Path "$base\logs" | Out-Null
+$projectRoot = (
+    Resolve-Path (
+        Join-Path $PSScriptRoot ".."
+    )
+).Path
 
-$path = "C:\soc-lab\logs\stream.jsonl"
+$logsDir = Join-Path $projectRoot "logs"
+
+New-Item `
+    -ItemType Directory `
+    -Force `
+    -Path $logsDir |
+    Out-Null
+
+$path = Join-Path `
+    $logsDir `
+    "stream.jsonl"
 
 while ($true) {
 
     $events = Get-WinEvent -FilterHashtable @{
-        LogName='Security'
-        ID=4625
-        StartTime=(Get-Date).AddSeconds(-2)
+        LogName = 'Security'
+        ID = 4625
+        StartTime = (Get-Date).AddSeconds(-2)
     } -ErrorAction SilentlyContinue
 
     foreach ($e in $events) {
 
-        # Extraer IP real
         $ip = $e.Properties[19].Value
 
-        if (!$ip -or $ip -eq "-" -or $ip -eq "::1") {
+        if (
+            !$ip `
+            -or $ip -eq "-" `
+            -or $ip -eq "::1"
+        ) {
             continue
         }
 
         $obj = @{
-            time = (Get-Date -Format "HH:mm:ss")
+            time = (
+                Get-Date -Format "HH:mm:ss"
+            )
             level = "HIGH"
             ip = $ip
             message = "FAILED LOGIN"
         }
 
-        $line = $obj | ConvertTo-Json -Compress
-
-        # ======================================
-        # SHARED WRITE (FIX WSL PERMISSION ERROR)
-        # ======================================
+        $line = (
+            $obj |
+            ConvertTo-Json -Compress
+        )
 
         $fs = [System.IO.File]::Open(
             $path,
@@ -40,7 +57,9 @@ while ($true) {
             [System.IO.FileShare]::ReadWrite
         )
 
-        $sw = New-Object System.IO.StreamWriter($fs)
+        $sw = New-Object `
+            System.IO.StreamWriter($fs)
+
         $sw.WriteLine($line)
         $sw.Flush()
         $sw.Close()

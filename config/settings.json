@@ -1,5 +1,0 @@
-{
-  "log_file_windows": "C:\\soc-lab\\logs\\events.log",
-  "log_file_wsl": "/mnt/c/soc-lab/logs/events.log",
-  "engine_path_wsl": "/mnt/c/soc-lab/engine/soc_engine.py"
-}

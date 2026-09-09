@@ -1,9 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -e
+
+SCRIPT_DIR="$(
+    cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+    pwd
+)"
+
+PROJECT_ROOT="$(
+    cd -- "${SCRIPT_DIR}/.."
+    pwd
+)"
+
+cd "${PROJECT_ROOT}"
 
 echo "Starting SOC Engine..."
-cd /mnt/c/soc-lab/engine || exit
-python3 soc_engine.py
 
-echo ""
-echo "Engine stopped. Shell remains open."
-exec bash
+python3 -m engine.orchestration.soc_engine
+
+echo
+echo "Engine stopped."
