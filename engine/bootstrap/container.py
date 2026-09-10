@@ -5,6 +5,9 @@ from engine.bootstrap.builders.service_builder import build_services
 from engine.bootstrap.builders.correlation_builder import build_correlation
 from engine.bootstrap.builders.pipeline_builder import build_pipelines
 from engine.bootstrap.builders.runtime_builder import build_runtime
+from engine.services.monitor_snapshot import (
+    MonitorSnapshotWriter
+)
 
 
 class Container:
@@ -16,7 +19,8 @@ class Container:
         mitre_file,
         dlq_file,
         db_file,
-        event_cache
+        event_cache,
+        monitor_snapshot_file
     ):
 
         self.event_cache = event_cache
@@ -36,6 +40,12 @@ class Container:
         )
 
         build_services(self)
+
+        self.monitor_snapshot_writer = (
+            MonitorSnapshotWriter(
+                monitor_snapshot_file
+            )
+        )
 
         build_correlation(self)
 
@@ -63,6 +73,22 @@ class Container:
         result = self.orchestrator.execute(
             task["payload"]
         )
+
+        try:
+            snapshot = (
+                self.monitor_snapshot_builder
+                .build()
+            )
+
+            self.monitor_snapshot_writer.write(
+                snapshot
+            )
+
+        except Exception as error:
+            print(
+                "[MONITOR] Snapshot update failed: "
+                f"{error}"
+            )
 
         task["state"] = "COMPLETED"
 

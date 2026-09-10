@@ -55,6 +55,11 @@ def create_app():
             "soc.db"
         ),
 
+        monitor_snapshot_file=os.path.join(
+            OUTPUT_DIR,
+            "monitor_snapshot.json"
+        ),
+
         event_cache=[]
     )
 

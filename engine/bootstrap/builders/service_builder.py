@@ -50,6 +50,10 @@ from engine.behavior_engine import (
     BehaviorEngine
 )
 
+from engine.services.monitor_snapshot import (
+    MonitorSnapshotBuilder
+)
+
 def build_services(container):
 
     container.suppressor = (
@@ -103,5 +107,16 @@ def build_services(container):
         BehaviorEngine(
             threshold=5,
             window_seconds=60
+        )
+    )
+
+    container.monitor_snapshot_builder = (
+        MonitorSnapshotBuilder(
+            incident_repository=(
+                container.incident_repository
+            ),
+            campaign_repository=(
+                container.campaign_repository
+            )
         )
     )
