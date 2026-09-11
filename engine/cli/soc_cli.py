@@ -150,8 +150,7 @@ class SOCConsole:
 
         while True:
             try:
-                with console_lock:
-                    cmd = input("soc> ").strip()
+                cmd = input("soc> ").strip()
 
                 if not cmd:
                     continue
