@@ -11,6 +11,7 @@ from engine.adversary_simulator import AdversarySimulator
 def build_infrastructure(
     container,
     stream_file,
+    event_reader_checkpoint_file,
     detection_path,
     mitre_file
 ):
@@ -20,7 +21,8 @@ def build_infrastructure(
     # =====================================
 
     container.reader = EventReader(
-        stream_file
+        stream_file,
+        event_reader_checkpoint_file
     )
 
     # =====================================

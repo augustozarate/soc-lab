@@ -20,7 +20,8 @@ class Container:
         dlq_file,
         db_file,
         event_cache,
-        monitor_snapshot_file
+        monitor_snapshot_file,
+        event_reader_checkpoint_file
     ):
 
         self.event_cache = event_cache
@@ -35,6 +36,7 @@ class Container:
         build_infrastructure(
             self,
             stream_file,
+            event_reader_checkpoint_file,
             detection_path,
             mitre_file
         )
@@ -70,11 +72,67 @@ class Container:
 
         task["state"] = "RUNNING"
 
-        result = self.orchestrator.execute(
-            task["payload"]
+        alert = task["payload"]
+
+        dedup_key = (
+            self.processed_alert_repository
+            .build_key(alert)
         )
 
+        claimed = False
+
+        if dedup_key:
+
+            claimed = (
+                self.processed_alert_repository
+                .claim(
+                    dedup_key=dedup_key,
+                    alert_type=(
+                        alert.get("rule_id")
+                        or alert.get("type")
+                    ),
+                    ip=alert.get("ip"),
+                    source_record_id=alert.get(
+                        "source_record_id"
+                    ),
+                    source_event_id=alert.get(
+                        "source_event_id"
+                    ),
+                    owner_task_id=task["task_id"]
+                )
+            )
+
+            if not claimed:
+                task["state"] = "COMPLETED"
+                return None
+
         try:
+
+            result = self.orchestrator.execute(
+                alert
+            )
+
+            if dedup_key:
+                self.processed_alert_repository.complete(
+                    dedup_key,
+                    task["task_id"]
+                )
+
+        except Exception:
+
+            if (
+                dedup_key
+                and claimed
+            ):
+                self.processed_alert_repository.release(
+                    dedup_key,
+                    task["task_id"]
+                )
+
+            raise
+
+        try:
+
             snapshot = (
                 self.monitor_snapshot_builder
                 .build()
@@ -85,6 +143,7 @@ class Container:
             )
 
         except Exception as error:
+
             print(
                 "[MONITOR] Snapshot update failed: "
                 f"{error}"

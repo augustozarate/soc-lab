@@ -15,6 +15,10 @@ from engine.storage.repositories.event_repository import (
     EventRepository
 )
 
+from engine.storage.repositories.processed_alert_repository import (
+    ProcessedAlertRepository
+)
+
 
 def build_repositories(
     container,
@@ -54,3 +58,11 @@ def build_repositories(
             container.database
         )
     )
+
+    container.processed_alert_repository = (
+        ProcessedAlertRepository(
+            container.database
+        )
+    )
+
+    container.processed_alert_repository.reset_incomplete()

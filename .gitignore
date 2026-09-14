@@ -60,3 +60,12 @@ engine/data/threat_intel.json
 # SOC runtime memory / threat intelligence cache
 data/ai_memory.json
 data/threat_intel.json
+
+# Local test environment
+.venv-test/
+
+# Archived runtime telemetry
+logs/archive/
+
+# Event reader runtime checkpoint
+data/event_reader_checkpoint.json

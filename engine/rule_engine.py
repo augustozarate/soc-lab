@@ -109,8 +109,6 @@ class DetectionEngine:
 
             alert = {
                 "rule_id": rule_id,
-
-                # Contract with MitreMapper
                 "type": rule_id,
 
                 "severity": rule.get(
@@ -119,13 +117,20 @@ class DetectionEngine:
                 ),
 
                 "ip": ip,
-
                 "message": message,
 
                 "match_count": len(bucket),
 
                 "window_seconds": (
                     window_seconds
+                ),
+
+                "source_record_id": event.get(
+                    "record_id"
+                ),
+
+                "source_event_id": event.get(
+                    "event_id"
                 )
             }
 

@@ -43,6 +43,18 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS processed_alerts (
+    dedup_key TEXT PRIMARY KEY,
+    alert_type TEXT NOT NULL,
+    ip TEXT,
+    source_record_id INTEGER,
+    source_event_id INTEGER,
+    status TEXT NOT NULL,
+    owner_task_id TEXT,
+    claimed_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_incidents_ip
 ON incidents(ip);
 
@@ -63,3 +75,6 @@ ON events(event_type);
 
 CREATE INDEX IF NOT EXISTS idx_events_created
 ON events(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_processed_alerts_status
+ON processed_alerts(status);

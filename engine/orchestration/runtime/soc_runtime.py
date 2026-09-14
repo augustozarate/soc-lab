@@ -98,14 +98,35 @@ class SOCRuntime:
                     .read_new_events()
                 )
 
+                batch_completed = True
+                batch_tasks = []
+
                 for event in events:
 
                     if not self.running:
+                        batch_completed = False
                         break
 
-                    self._process_event(
+                    tasks = self._process_event(
                         event
                     )
+
+                    batch_tasks.extend(
+                        tasks
+                    )
+
+                tasks_completed = (
+                    self._wait_for_tasks(
+                        batch_tasks
+                    )
+                )
+
+                if (
+                    events
+                    and batch_completed
+                    and tasks_completed
+                ):
+                    self.container.reader.commit()
 
             except Exception as error:
 
@@ -162,6 +183,8 @@ class SOCRuntime:
             + ueba_alerts
         )
 
+        published_tasks = []
+
         for alert in alerts:
 
             alert = (
@@ -169,8 +192,66 @@ class SOCRuntime:
                 .enrich(alert)
             )
 
-            self.scheduler.publish(
+            task = self.scheduler.publish(
                 event_type="alert",
                 payload=alert,
                 priority=50
             )
+
+            published_tasks.append(
+                task
+            )
+
+        return published_tasks
+
+    def _wait_for_tasks(
+        self,
+        tasks,
+        warning_interval=30
+    ):
+
+        if not tasks:
+            return True
+
+        next_warning = (
+            time.time()
+            + warning_interval
+        )
+
+        terminal_states = {
+            "COMPLETED",
+            "FAILED"
+        }
+
+        while self.running:
+
+            if all(
+                task["state"]
+                in terminal_states
+                for task in tasks
+            ):
+                return True
+
+            if time.time() >= next_warning:
+
+                pending = [
+                    task
+                    for task in tasks
+                    if task["state"]
+                    not in terminal_states
+                ]
+
+                self.log(
+                    "[RUNTIME] Waiting for "
+                    f"{len(pending)} task(s) "
+                    "before checkpoint commit"
+                )
+
+                next_warning = (
+                    time.time()
+                    + warning_interval
+                )
+
+            time.sleep(0.1)
+
+        return False

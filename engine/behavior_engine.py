@@ -56,7 +56,15 @@ class BehaviorEngine:
                 "type": "UEBA_BRUTE_FORCE",
                 "ip": ip,
                 "count": count,
-                "severity": "HIGH"
+                "severity": "HIGH",
+
+                "source_record_id": event.get(
+                    "record_id"
+                ),
+
+                "source_event_id": event.get(
+                    "event_id"
+                )
             }
         ]
 
