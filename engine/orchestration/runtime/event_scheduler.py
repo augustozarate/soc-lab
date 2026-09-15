@@ -1,6 +1,8 @@
 from itertools import count
 from queue import PriorityQueue, Empty
 
+from engine.telemetry.metrics import metrics
+
 from engine.orchestration.runtime.task_context import (
     TaskContext
 )
@@ -41,6 +43,11 @@ class EventScheduler:
             )
         )
 
+        metrics.set_gauge(
+            "queue_depth",
+            self.depth()
+        )
+
         if self.event_repository:
 
             self.event_repository.save(
@@ -63,6 +70,11 @@ class EventScheduler:
                 )
             )
 
+            metrics.set_gauge(
+                "queue_depth",
+                self.depth()
+            )
+
             return task
 
         except Empty:
@@ -81,3 +93,14 @@ class EventScheduler:
                 task
             )
         )
+
+        metrics.set_gauge(
+            "queue_depth",
+            self.depth()
+        )
+
+    # =====================================
+
+    def depth(self):
+
+        return self.queue.qsize()

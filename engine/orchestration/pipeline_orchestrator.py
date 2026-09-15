@@ -1,3 +1,8 @@
+import time
+
+from engine.telemetry.metrics import metrics
+
+
 class PipelineOrchestrator:
 
     def __init__(self):
@@ -20,7 +25,32 @@ class PipelineOrchestrator:
 
         for stage in self.stages:
 
-            result = stage.run(context)
+            stage_name = (
+                type(stage).__name__
+            )
+
+            started = (
+                time.perf_counter()
+            )
+
+            try:
+
+                result = stage.run(
+                    context
+                )
+
+            finally:
+
+                duration = (
+                    time.perf_counter()
+                    - started
+                )
+
+                metrics.observe(
+                    "pipeline_latency_seconds",
+                    duration,
+                    label=stage_name
+                )
 
             if result is False:
                 return None

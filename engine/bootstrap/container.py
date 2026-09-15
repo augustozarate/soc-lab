@@ -1,3 +1,6 @@
+import time
+
+from engine.telemetry.metrics import metrics
 from engine.bootstrap.builders.core_builder import build_core
 from engine.bootstrap.builders.repository_builder import build_repositories
 from engine.bootstrap.builders.infrastructure_builder import build_infrastructure
@@ -7,6 +10,9 @@ from engine.bootstrap.builders.pipeline_builder import build_pipelines
 from engine.bootstrap.builders.runtime_builder import build_runtime
 from engine.services.monitor_snapshot import (
     MonitorSnapshotWriter
+)
+from engine.telemetry.runtime_metrics_writer import (
+    RuntimeMetricsWriter
 )
 
 
@@ -21,6 +27,7 @@ class Container:
         db_file,
         event_cache,
         monitor_snapshot_file,
+        runtime_metrics_file,
         event_reader_checkpoint_file
     ):
 
@@ -49,6 +56,12 @@ class Container:
             )
         )
 
+        self.runtime_metrics_writer = (
+            RuntimeMetricsWriter(
+                runtime_metrics_file
+            )
+        )
+
         build_correlation(self)
 
         build_pipelines(self)
@@ -71,6 +84,10 @@ class Container:
     def process_task(self, task):
 
         task["state"] = "RUNNING"
+
+        started = (
+            time.perf_counter()
+        )
 
         alert = task["payload"]
 
@@ -103,6 +120,24 @@ class Container:
             )
 
             if not claimed:
+                duration = (
+                    time.perf_counter()
+                    - started
+                )
+
+                metrics.inc(
+                    "tasks_deduplicated_total"
+                )
+
+                metrics.inc(
+                    "tasks_completed_total"
+                )
+
+                metrics.observe(
+                    "task_latency_seconds",
+                    duration
+                )
+
                 task["state"] = "COMPLETED"
                 return None
 
@@ -119,6 +154,20 @@ class Container:
                 )
 
         except Exception:
+
+            duration = (
+                time.perf_counter()
+                - started
+            )
+
+            metrics.inc(
+                "task_attempt_failures_total"
+            )
+
+            metrics.observe(
+                "task_latency_seconds",
+                duration
+            )
 
             if (
                 dedup_key
@@ -148,6 +197,20 @@ class Container:
                 "[MONITOR] Snapshot update failed: "
                 f"{error}"
             )
+
+        duration = (
+            time.perf_counter()
+            - started
+        )
+
+        metrics.inc(
+            "tasks_completed_total"
+        )
+
+        metrics.observe(
+            "task_latency_seconds",
+            duration
+        )
 
         task["state"] = "COMPLETED"
 

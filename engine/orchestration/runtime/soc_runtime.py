@@ -1,4 +1,7 @@
 import time
+import os
+
+from engine.telemetry.metrics import metrics
 
 
 class SOCRuntime:
@@ -97,6 +100,7 @@ class SOCRuntime:
                     self.container.reader
                     .read_new_events()
                 )
+                self._update_runtime_gauges()
 
                 batch_completed = True
                 batch_tasks = []
@@ -127,6 +131,7 @@ class SOCRuntime:
                     and tasks_completed
                 ):
                     self.container.reader.commit()
+                    self._update_runtime_gauges()
 
             except Exception as error:
 
@@ -143,6 +148,9 @@ class SOCRuntime:
         self,
         event
     ):
+        metrics.inc(
+            "events_read_total"
+        )
 
         self.container.event_cache.append(
             event
@@ -183,6 +191,13 @@ class SOCRuntime:
             + ueba_alerts
         )
 
+        if alerts:
+
+            metrics.inc(
+                "alerts_generated_total",
+                len(alerts)
+            )
+
         published_tasks = []
 
         for alert in alerts:
@@ -203,6 +218,8 @@ class SOCRuntime:
             )
 
         return published_tasks
+
+    # =====================================
 
     def _wait_for_tasks(
         self,
@@ -255,3 +272,74 @@ class SOCRuntime:
             time.sleep(0.1)
 
         return False
+
+    # =====================================
+
+    def _update_runtime_gauges(self):
+
+        reader = (
+            self.container.reader
+        )
+
+        metrics.set_gauge(
+            "queue_depth",
+            self.scheduler.depth()
+        )
+
+        checkpoint_position = (
+            reader.position
+        )
+
+        metrics.set_gauge(
+            "checkpoint_position",
+            checkpoint_position
+        )
+
+        try:
+
+            stream_size = os.path.getsize(
+                reader.filepath
+            )
+
+        except OSError:
+
+            stream_size = 0
+
+        metrics.set_gauge(
+            "stream_size",
+            stream_size
+        )
+
+        checkpoint_lag = max(
+            0,
+            stream_size
+            - checkpoint_position
+        )
+
+        metrics.set_gauge(
+            "checkpoint_lag_bytes",
+            checkpoint_lag
+        )
+
+        self._write_runtime_metrics()
+
+    # =====================================
+
+    def _write_runtime_metrics(self):
+
+        try:
+
+            snapshot = (
+                metrics.snapshot()
+            )
+
+            self.container.runtime_metrics_writer.write(
+                snapshot
+            )
+
+        except Exception as error:
+
+            self.log(
+                "[METRICS] Snapshot update failed: "
+                f"{error}"
+            )

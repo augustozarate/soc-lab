@@ -60,6 +60,11 @@ def create_app():
             "monitor_snapshot.json"
         ),
 
+        runtime_metrics_file=os.path.join(
+            OUTPUT_DIR,
+            "runtime_metrics.json"
+        ),
+
         event_reader_checkpoint_file=os.path.join(
             DATA_DIR,
             "event_reader_checkpoint.json"

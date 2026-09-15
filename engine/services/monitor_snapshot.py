@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
-import json
-import os
-import tempfile
+
+from engine.services.atomic_json_writer import (
+    AtomicJsonWriter
+)
 
 
 class MonitorSnapshotBuilder:
@@ -274,69 +275,17 @@ class MonitorSnapshotBuilder:
             )
         }
 
-class MonitorSnapshotWriter:
+
+class MonitorSnapshotWriter(
+    AtomicJsonWriter
+):
 
     def __init__(
         self,
         path
     ):
-        self.path = path
 
-    def write(
-        self,
-        snapshot
-    ):
-
-        directory = os.path.dirname(
-            self.path
+        super().__init__(
+            path=path,
+            temp_prefix=".monitor_snapshot_"
         )
-
-        os.makedirs(
-            directory,
-            exist_ok=True
-        )
-
-        fd, temp_path = (
-            tempfile.mkstemp(
-                prefix=".monitor_snapshot_",
-                suffix=".json.tmp",
-                dir=directory
-            )
-        )
-
-        try:
-
-            with os.fdopen(
-                fd,
-                "w",
-                encoding="utf-8"
-            ) as f:
-
-                json.dump(
-                    snapshot,
-                    f,
-                    ensure_ascii=False,
-                    indent=2
-                )
-
-                f.flush()
-
-                os.fsync(
-                    f.fileno()
-                )
-
-            os.replace(
-                temp_path,
-                self.path
-            )
-
-        except Exception:
-
-            try:
-                os.unlink(
-                    temp_path
-                )
-            except FileNotFoundError:
-                pass
-
-            raise
