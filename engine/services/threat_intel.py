@@ -1,9 +1,18 @@
 import random
+import socket
+import threading
 import time
 
 import requests
 
-from engine.config import ABUSE_KEY, VT_KEY
+from engine.config import (
+    ABUSE_KEY,
+    THREAT_INTEL_PREFLIGHT_ENABLED,
+    THREAT_INTEL_PREFLIGHT_HOST,
+    THREAT_INTEL_PREFLIGHT_PORT,
+    THREAT_INTEL_PREFLIGHT_TIMEOUT,
+    VT_KEY,
+)
 from engine.storage.ai_memory import AIMemory
 
 
@@ -29,6 +38,42 @@ class ThreatIntel:
             "abuse": 1,
             "vt": 15
         }
+
+        # External provider circuit breaker.
+        #
+        # Connectivity failures temporarily suspend
+        # external lookups so an offline SOC runtime
+        # does not repeatedly block worker execution.
+        self.external_failure_count = 0
+        self.external_failure_threshold = 1
+        self.external_circuit_opened_at = None
+        self.external_circuit_cooldown = 60.0
+
+        # Only one worker may perform an external
+        # connectivity probe at a time. Other workers
+        # fail open to local/heuristic enrichment.
+        self.external_probe_lock = threading.RLock()
+        self.external_probe_in_flight = False
+
+        # Fast connectivity preflight.
+        #
+        # This prevents an isolated/offline runtime
+        # from entering a slow system DNS resolution.
+        self.external_preflight_enabled = (
+            THREAT_INTEL_PREFLIGHT_ENABLED
+        )
+
+        self.external_preflight_host = (
+            THREAT_INTEL_PREFLIGHT_HOST
+        )
+
+        self.external_preflight_port = (
+            THREAT_INTEL_PREFLIGHT_PORT
+        )
+
+        self.external_preflight_timeout = (
+            THREAT_INTEL_PREFLIGHT_TIMEOUT
+        )
 
         # API keys
         self.abuse_key = ABUSE_KEY
@@ -82,31 +127,206 @@ class ThreatIntel:
         return result
 
     # =========================
+    # EXTERNAL CIRCUIT BREAKER
+    # =========================
+    def _external_circuit_open(self):
+
+        with self.external_probe_lock:
+
+            opened_at = (
+                self.external_circuit_opened_at
+            )
+
+            if opened_at is None:
+                return False
+
+            elapsed = (
+                time.monotonic()
+                - opened_at
+            )
+
+            if (
+                elapsed
+                >= self.external_circuit_cooldown
+            ):
+                self.external_failure_count = 0
+                self.external_circuit_opened_at = None
+
+                return False
+
+            return True
+
+    def _record_external_connectivity_failure(
+        self
+    ):
+
+        with self.external_probe_lock:
+
+            self.external_failure_count += 1
+
+            if (
+                self.external_failure_count
+                >= self.external_failure_threshold
+            ):
+                self.external_circuit_opened_at = (
+                    time.monotonic()
+                )
+
+    def _claim_external_probe(self):
+
+        with self.external_probe_lock:
+
+            if self._external_circuit_open():
+                return False
+
+            if self.external_probe_in_flight:
+                return False
+
+            self.external_probe_in_flight = True
+
+            return True
+
+    def _release_external_probe(self):
+
+        with self.external_probe_lock:
+            self.external_probe_in_flight = False
+
+    def _external_preflight_available(self):
+
+        if not self.external_preflight_enabled:
+            return True
+
+        sock = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM
+        )
+
+        sock.settimeout(
+            self.external_preflight_timeout
+        )
+
+        try:
+
+            result = sock.connect_ex(
+                (
+                    self.external_preflight_host,
+                    self.external_preflight_port
+                )
+            )
+
+            return result == 0
+
+        except OSError:
+
+            return False
+
+        finally:
+
+            sock.close()
+
+    def _external_request_failed(
+        self,
+        error
+    ):
+
+        if isinstance(
+            error,
+            (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout
+            )
+        ):
+            self._record_external_connectivity_failure()
+
+            print(
+                "[TI] External connectivity unavailable"
+            )
+
+            return True
+
+        return False
+
+    # =========================
     # EXTERNAL LOOKUP (smart)
     # =========================
     def _external_lookup(self, ip):
 
-        # AbuseIPDB
-        if self.abuse_key:
-            now = time.time()
-            if now - self.last_api_call["abuse"] >= self.api_rate_limit["abuse"]:
-                self.last_api_call["abuse"] = now
-                data = self._check_abuseipdb(ip)
-                if data:
-                    print("[TI] Source: ABUSEIPDB")
-                    return data
+        if not self._claim_external_probe():
 
-        # VirusTotal
-        if self.vt_key:
-            now = time.time()
-            if now - self.last_api_call["vt"] >= self.api_rate_limit["vt"]:
-                self.last_api_call["vt"] = now
-                data = self._check_virustotal(ip)
-                if data:
-                    print("[TI] Source: VIRUSTOTAL")
-                    return data
+            if self._external_circuit_open():
+                print(
+                    "[TI] External lookup skipped: "
+                    "circuit open"
+                )
+            else:
+                print(
+                    "[TI] External lookup skipped: "
+                    "probe already in flight"
+                )
 
-        return None
+            return None
+
+        try:
+
+            if not self._external_preflight_available():
+
+                self._record_external_connectivity_failure()
+
+                print(
+                    "[TI] External preflight unavailable"
+                )
+
+                return None
+
+            # AbuseIPDB
+            if self.abuse_key:
+                now = time.time()
+
+                if (
+                    now
+                    - self.last_api_call["abuse"]
+                    >= self.api_rate_limit["abuse"]
+                ):
+                    self.last_api_call["abuse"] = now
+
+                    data = self._check_abuseipdb(
+                        ip
+                    )
+
+                    if data:
+                        print(
+                            "[TI] Source: ABUSEIPDB"
+                        )
+                        return data
+
+                    if self._external_circuit_open():
+                        return None
+
+            # VirusTotal
+            if self.vt_key:
+                now = time.time()
+
+                if (
+                    now
+                    - self.last_api_call["vt"]
+                    >= self.api_rate_limit["vt"]
+                ):
+                    self.last_api_call["vt"] = now
+
+                    data = self._check_virustotal(
+                        ip
+                    )
+
+                    if data:
+                        print(
+                            "[TI] Source: VIRUSTOTAL"
+                        )
+                        return data
+
+            return None
+
+        finally:
+            self._release_external_probe()
 
     # =========================
     # ABUSEIPDB
@@ -148,6 +368,14 @@ class ThreatIntel:
                 "source": "abuseipdb"
             }
 
+        except requests.exceptions.RequestException as error:
+
+            self._external_request_failed(
+                error
+            )
+
+            return None
+
         except Exception:
             return None
 
@@ -188,6 +416,14 @@ class ThreatIntel:
                 "known_attack": malicious > 0,
                 "source": "virustotal"
             }
+
+        except requests.exceptions.RequestException as error:
+
+            self._external_request_failed(
+                error
+            )
+
+            return None
 
         except Exception:
             return None
