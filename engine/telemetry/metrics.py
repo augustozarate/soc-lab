@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 import threading
 
 
@@ -11,7 +11,7 @@ class Metrics:
         self.gauges = {}
         self.observations = {}
 
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
 
         self._lock = threading.Lock()
 
@@ -133,7 +133,7 @@ class Metrics:
         with self._lock:
 
             uptime = (
-                datetime.utcnow()
+                datetime.now(timezone.utc)
                 - self.start_time
             ).total_seconds()
 
@@ -186,9 +186,12 @@ class Metrics:
 
             return {
                 "generated_at": (
-                    datetime.utcnow()
+                    datetime.now(timezone.utc)
                     .isoformat()
-                    + "Z"
+                    .replace(
+                        "+00:00",
+                        "Z"
+                    )
                 ),
                 "uptime_seconds": uptime,
                 "counters": counters,
