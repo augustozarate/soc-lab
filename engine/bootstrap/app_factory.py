@@ -80,7 +80,10 @@ def create_app():
         container.event_cache,
         container.threat_graph,
         container.campaign_tracker,
-        container.ai_analyst
+        container.ai_analyst,
+        operator_console_controller=(
+            container.operator_console_controller
+        )
     )
 
     runtime = SOCRuntime(

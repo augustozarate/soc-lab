@@ -57,6 +57,12 @@ from engine.services.monitor_snapshot import (
 from engine.presentation.operator_read_model import (
     OperatorReadModel
 )
+from engine.presentation.operator_console import (
+    OperatorConsoleRenderer
+)
+from engine.presentation.operator_console_controller import (
+    OperatorConsoleController
+)
 
 def build_services(container):
 
@@ -138,6 +144,21 @@ def build_services(container):
             ),
             event_cache=(
                 container.event_cache
+            ),
+        )
+    )
+
+    container.operator_console_renderer = (
+        OperatorConsoleRenderer()
+    )
+
+    container.operator_console_controller = (
+        OperatorConsoleController(
+            read_model=(
+                container.operator_read_model
+            ),
+            renderer=(
+                container.operator_console_renderer
             ),
         )
     )

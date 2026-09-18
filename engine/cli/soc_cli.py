@@ -14,6 +14,8 @@ from engine.cli.console_output import log
 COMMAND_TREE = {
     "help": {"advanced": {}},
 
+    "operator": {},
+
     "incidents": {
         "list": {},
         "show": {},
@@ -64,10 +66,21 @@ COMMAND_TREE = {
 
 class SOCConsole:
 
-    def __init__(self, incident_manager, case_manager, simulator=None, event_cache=None, threat_graph=None, campaign_tracker=None, ai_analyst=None):
+    def __init__(
+        self,
+        incident_manager,
+        case_manager,
+        simulator=None,
+        event_cache=None,
+        threat_graph=None,
+        campaign_tracker=None,
+        ai_analyst=None,
+        operator_console_controller=None,
+    ):
         self.routes = {
             # BASE COMMANDS
             ("help", None): self.help,
+            ("operator", None): self.show_operator_console,
             ("case", None): self.list_cases,        # opcional
             ("ai", None): self.ai_help,             # opcional
             ("util", None): self.util_help,         # opcional
@@ -117,7 +130,7 @@ class SOCConsole:
 
             ("group", None): self.group,
         }
-    
+
         self.im = incident_manager
         self.cm = case_manager
         self.simulator = simulator
@@ -125,8 +138,27 @@ class SOCConsole:
         self.threat_graph = threat_graph
         self.campaign_tracker = campaign_tracker
         self.ai = ai_analyst or AIAnalyst()
+        self.operator_console_controller = (
+            operator_console_controller
+        )
         self.parser = CommandParser(COMMAND_TREE)
         self._thread = None
+
+    def show_operator_console(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if self.operator_console_controller is None:
+            raise RuntimeError(
+                "Operator Console is unavailable"
+            )
+
+        return (
+            self.operator_console_controller
+            .render()
+        )
 
     # =========================
     # COMMAND LOOP
@@ -214,7 +246,7 @@ class SOCConsole:
                 print(f"[ERROR] Unknown command '{cmd}'. Did you mean '{suggestion}'?")
             else:
                 print(f"[ERROR] {str(e)}")
-    
+
     def search_incidents(self, args, flags, input_data=None):
         filters = self.parse_filters(args)
 
@@ -229,20 +261,20 @@ class SOCConsole:
         if input_data is None:
             input_data = list(self.im.incidents.values())
         return len(input_data)
-    
+
     def fields(self, args, flags, data):
         if not args:
             return data
 
         return [{k: d.get(k) for k in args} for d in data or []]
-    
+
     def sort(self, args, flags, data):
         if not self.require_args(args, 1, "util sort <field>"):
             return data
 
         key = args[0]
         return sorted(data or [], key=lambda x: x.get(key))
-    
+
     def head(self, args, flags, data):
         n = int(args[0]) if args else 5
         return (data or [])[:n]
@@ -250,7 +282,7 @@ class SOCConsole:
     def tail(self, args, flags, data):
         n = int(args[0]) if args else 5
         return (data or [])[-n:]
-    
+
     def uniq(self, args, flags, data):
         if not args:
             return data
@@ -266,7 +298,7 @@ class SOCConsole:
                 result.append(d)
 
         return result
-    
+
     def where(self, args, flags, data):
         result = []
 
@@ -291,11 +323,11 @@ class SOCConsole:
                 result.append(d)
 
         return result
-    
+
     def to_json(self, args, flags, data):
         print(json.dumps(data, indent=2))
         return data
-    
+
     def table(self, args, flags, data):
         if not data:
             return data
@@ -306,12 +338,12 @@ class SOCConsole:
             print(" | ".join(str(row.get(k, "")) for k in keys))
 
         return data
-    
+
     def pivot(self, args, flags, data):
         key = args[0]
 
         return [d.get(key) for d in data or [] if d.get(key)]
-    
+
     def enrich(self, args, flags, data):
         enriched = []
 
@@ -360,7 +392,7 @@ class SOCConsole:
             return self.routes[fallback_key](parsed["args"], parsed["flags"], input_data)
 
         raise ValueError("Command not implemented")
-    
+
     def group(self, args, flags, data):
         key = args[0]
         result = {}
@@ -438,7 +470,7 @@ class SOCConsole:
 
     def list_incidents(self, args=None, flags=None, input_data=None):
         return list(self.im.incidents.values())
-    
+
     def cmd_incidents_list(self, args, flags, data):
         incidents = list(self.im.incidents.values())
 
@@ -597,7 +629,7 @@ class SOCConsole:
         if len(parts) < expected:
             return None
         return parts
-    
+
     def show_graph(self, incident_id):
 
         if not self.threat_graph:
@@ -783,13 +815,13 @@ class SOCConsole:
         except IndexError:
             print(f"Usage: {usage}")
             return None
-        
+
     def require_args(self, args, n, usage):
         if len(args) < n:
             print(f"Usage: {usage}")
             return False
         return True
-    
+
     def cmd_story(self, args, flags, data):
         if not args:
             print("Usage: story <incident_id>")
@@ -901,7 +933,7 @@ class SOCConsole:
         commands = [c[0] for c in self.routes.keys()]
         match = difflib.get_close_matches(cmd, commands, n=1)
         return match[0] if match else None
-    
+
     def cmd_graph(self, args, flags, data):
         if not args:
             print("Usage: graph <incident_id>")
