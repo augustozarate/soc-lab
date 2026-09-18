@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from engine.mitre_hunt_map import MITRE_HUNT_RULES
 
 class ThreatHunter:
@@ -24,7 +24,7 @@ class ThreatHunter:
 
         hunt_actions = MITRE_HUNT_RULES.get(tactic, [])
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         window = now - timedelta(minutes=30)
 
         for event in self.event_cache:
@@ -37,6 +37,15 @@ class ThreatHunter:
                 event_time = datetime.fromisoformat(ts)
             except Exception:
                 continue
+
+            if event_time.tzinfo is None:
+                event_time = event_time.replace(
+                    tzinfo=timezone.utc
+                )
+            else:
+                event_time = event_time.astimezone(
+                    timezone.utc
+                )
 
             if event_time < window:
                 continue
