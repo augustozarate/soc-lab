@@ -54,6 +54,10 @@ from engine.services.monitor_snapshot import (
     MonitorSnapshotBuilder
 )
 
+from engine.presentation.operator_read_model import (
+    OperatorReadModel
+)
+
 def build_services(container):
 
     container.suppressor = (
@@ -118,5 +122,22 @@ def build_services(container):
             campaign_repository=(
                 container.campaign_repository
             )
+        )
+    )
+
+    container.operator_read_model = (
+        OperatorReadModel(
+            incident_repository=(
+                container.incident_repository
+            ),
+            campaign_repository=(
+                container.campaign_repository
+            ),
+            case_manager=(
+                container.case_manager
+            ),
+            event_cache=(
+                container.event_cache
+            ),
         )
     )
