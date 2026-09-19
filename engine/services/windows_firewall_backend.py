@@ -1,6 +1,5 @@
 import ipaddress
 import json
-import os
 import subprocess
 
 
@@ -11,8 +10,31 @@ class WindowsFirewallBackend:
     _BLOCK_SCRIPT = r'''
 $ErrorActionPreference = "Stop"
 
-$ruleName = $env:SOC_LAB_RULE_NAME
-$targetIp = $env:SOC_LAB_TARGET_IP
+$requestText = [Console]::In.ReadToEnd()
+
+$request = (
+    $requestText |
+    ConvertFrom-Json
+)
+
+$ruleName = [string]$request.rule_name
+$targetIp = [string]$request.target
+
+if (
+    [string]::IsNullOrWhiteSpace(
+        $ruleName
+    )
+) {
+    throw "Missing firewall rule name"
+}
+
+if (
+    [string]::IsNullOrWhiteSpace(
+        $targetIp
+    )
+) {
+    throw "Missing firewall target IP"
+}
 
 try {
 
@@ -130,8 +152,31 @@ catch {
     _UNBLOCK_SCRIPT = r'''
 $ErrorActionPreference = "Stop"
 
-$ruleName = $env:SOC_LAB_RULE_NAME
-$targetIp = $env:SOC_LAB_TARGET_IP
+$requestText = [Console]::In.ReadToEnd()
+
+$request = (
+    $requestText |
+    ConvertFrom-Json
+)
+
+$ruleName = [string]$request.rule_name
+$targetIp = [string]$request.target
+
+if (
+    [string]::IsNullOrWhiteSpace(
+        $ruleName
+    )
+) {
+    throw "Missing firewall rule name"
+}
+
+if (
+    [string]::IsNullOrWhiteSpace(
+        $targetIp
+    )
+) {
+    throw "Missing firewall target IP"
+}
 
 try {
 
@@ -186,8 +231,31 @@ catch {
     _QUERY_SCRIPT = r'''
 $ErrorActionPreference = "Stop"
 
-$ruleName = $env:SOC_LAB_RULE_NAME
-$targetIp = $env:SOC_LAB_TARGET_IP
+$requestText = [Console]::In.ReadToEnd()
+
+$request = (
+    $requestText |
+    ConvertFrom-Json
+)
+
+$ruleName = [string]$request.rule_name
+$targetIp = [string]$request.target
+
+if (
+    [string]::IsNullOrWhiteSpace(
+        $ruleName
+    )
+) {
+    throw "Missing firewall rule name"
+}
+
+if (
+    [string]::IsNullOrWhiteSpace(
+        $targetIp
+    )
+) {
+    throw "Missing firewall target IP"
+}
 
 try {
 
@@ -240,15 +308,25 @@ try {
         )
     }
 
-    if (
+    $invalidDirection = (
         $rule.Direction.ToString() -ne
         "Inbound"
-        -or
+    )
+
+    $invalidAction = (
         $rule.Action.ToString() -ne
         "Block"
-        -or
+    )
+
+    $invalidEnabled = (
         $rule.Enabled.ToString() -ne
         "True"
+    )
+
+    if (
+        $invalidDirection -or
+        $invalidAction -or
+        $invalidEnabled
     ) {
         throw (
             "Firewall rule exists but does " +
@@ -454,15 +532,12 @@ catch {
             target
         )
 
-        environment = os.environ.copy()
-
-        environment[
-            "SOC_LAB_RULE_NAME"
-        ] = rule_name
-
-        environment[
-            "SOC_LAB_TARGET_IP"
-        ] = target
+        payload = json.dumps(
+            {
+                "rule_name": rule_name,
+                "target": target,
+            }
+        )
 
         command = [
             self.powershell_path,
@@ -480,7 +555,7 @@ catch {
                 text=True,
                 timeout=self.timeout_seconds,
                 check=False,
-                env=environment,
+                input=payload,
             )
 
         except subprocess.TimeoutExpired as exc:

@@ -114,17 +114,16 @@ def test_block_creates_firewall_rule():
         "check"
     ] is False
 
-    assert kwargs[
-        "env"
-    ][
-        "SOC_LAB_TARGET_IP"
-    ] == TARGET
+    assert "env" not in kwargs
 
-    assert kwargs[
-        "env"
-    ][
-        "SOC_LAB_RULE_NAME"
-    ] == RULE_NAME
+    payload = json.loads(
+        kwargs["input"]
+    )
+
+    assert payload == {
+        "rule_name": RULE_NAME,
+        "target": TARGET,
+    }
 
 
 def test_existing_block_is_idempotent():
