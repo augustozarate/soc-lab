@@ -9,8 +9,32 @@ from engine.cli.console_io import (
 
 class ResponseEngine:
 
-    def __init__(self):
+    def __init__(
+        self,
+        response_mode="simulate",
+        firewall_backend=None,
+    ):
 
+        if response_mode not in {
+            "simulate",
+            "enforce",
+        }:
+            raise ValueError(
+                "response_mode must be "
+                "'simulate' or 'enforce'"
+            )
+
+        self.response_mode = (
+            response_mode
+        )
+
+        self.firewall_backend = (
+            firewall_backend
+        )
+
+        # Simulation-only compatibility state.
+        # This is not an enforcement source
+        # of truth.
         self.blocked_ips = set()
 
         self.registry = (
@@ -89,7 +113,12 @@ class ResponseEngine:
             ):
 
                 result["status"] = (
-                    "SUCCESS"
+                    "FAILED"
+                )
+
+                result["error"] = (
+                    "Response handler returned "
+                    "without a final status"
                 )
 
             return result
@@ -120,27 +149,83 @@ class ResponseEngine:
 
             return action
 
-        if ip in self.blocked_ips:
+        if self.response_mode == "simulate":
 
-            action["status"] = "SKIPPED"
-            action["reason"] = (
-                "IP already blocked"
+            if ip in self.blocked_ips:
+
+                action["status"] = "SKIPPED"
+                action["reason"] = (
+                    "IP already simulated as blocked"
+                )
+                action["backend"] = (
+                    "memory"
+                )
+
+                return action
+
+            self.blocked_ips.add(
+                ip
+            )
+
+            safe_print(
+                "[ACTION]",
+                (
+                    "Simulated block for IP "
+                    f"{ip}"
+                )
+            )
+
+            action["status"] = (
+                "SIMULATED"
+            )
+
+            action["backend"] = (
+                "memory"
             )
 
             return action
 
-        self.blocked_ips.add(
-            ip
-        )
+        if self.firewall_backend is None:
 
-        safe_print(
-            "[ACTION]",
-            f"Blocked IP {ip}"
+            raise RuntimeError(
+                "Firewall backend is not "
+                "configured"
+            )
+
+        backend_result = (
+            self.firewall_backend.block(
+                ip
+            )
         )
 
         action["status"] = "SUCCESS"
 
+        action["backend"] = (
+            "windows_firewall"
+        )
+
+        action["backend_status"] = (
+            backend_result.get(
+                "status"
+            )
+        )
+
+        action["rule_name"] = (
+            backend_result.get(
+                "rule_name"
+            )
+        )
+
+        safe_print(
+            "[ACTION]",
+            (
+                f"Blocked IP {ip} "
+                "via Windows Firewall"
+            )
+        )
+
         return action
+
 
     # =========================================
     # NOTIFY SOC

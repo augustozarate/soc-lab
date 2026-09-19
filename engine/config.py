@@ -34,6 +34,43 @@ def _env_bool(
     )
 
 
+def _env_choice(
+    name,
+    default,
+    allowed,
+):
+
+    value = os.getenv(
+        name,
+        default
+    )
+
+    value = value.strip().lower()
+
+    if value not in allowed:
+
+        allowed_text = ", ".join(
+            sorted(allowed)
+        )
+
+        raise ValueError(
+            f"Invalid {name}: {value}. "
+            f"Expected one of: {allowed_text}"
+        )
+
+    return value
+
+
+RESPONSE_MODE = _env_choice(
+    "RESPONSE_MODE",
+    "simulate",
+    {
+        "simulate",
+        "enforce",
+    }
+)
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True

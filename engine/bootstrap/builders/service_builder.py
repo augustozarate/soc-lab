@@ -29,6 +29,12 @@ from engine.services.case_manager import (
 from engine.services.response_engine import (
     ResponseEngine
 )
+from engine.services.windows_firewall_backend import (
+    WindowsFirewallBackend
+)
+from engine.config import (
+    RESPONSE_MODE
+)
 
 from engine.services.campaign_tracker import (
     CampaignTracker
@@ -92,8 +98,18 @@ def build_services(container):
         CaseManager()
     )
 
+    firewall_backend = None
+
+    if RESPONSE_MODE == "enforce":
+        firewall_backend = (
+            WindowsFirewallBackend()
+        )
+
     container.response_engine = (
-        ResponseEngine()
+        ResponseEngine(
+            response_mode=RESPONSE_MODE,
+            firewall_backend=firewall_backend,
+        )
     )
 
     container.response_policy_engine = (
