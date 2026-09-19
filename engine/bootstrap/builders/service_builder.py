@@ -32,8 +32,12 @@ from engine.services.response_engine import (
 from engine.services.windows_firewall_backend import (
     WindowsFirewallBackend
 )
+from engine.services.response_safety_policy import (
+    ResponseSafetyPolicy
+)
 from engine.config import (
-    RESPONSE_MODE
+    RESPONSE_MODE,
+    RESPONSE_PROTECTED_IPS,
 )
 
 from engine.services.campaign_tracker import (
@@ -105,10 +109,21 @@ def build_services(container):
             WindowsFirewallBackend()
         )
 
+    response_safety_policy = (
+        ResponseSafetyPolicy(
+            protected_ips=(
+                RESPONSE_PROTECTED_IPS
+            )
+        )
+    )
+
     container.response_engine = (
         ResponseEngine(
             response_mode=RESPONSE_MODE,
             firewall_backend=firewall_backend,
+            safety_policy=(
+                response_safety_policy
+            ),
         )
     )
 

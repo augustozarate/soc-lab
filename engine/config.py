@@ -71,6 +71,16 @@ RESPONSE_MODE = _env_choice(
 )
 
 
+RESPONSE_PROTECTED_IPS = tuple(
+    value.strip()
+    for value in os.getenv(
+        "RESPONSE_PROTECTED_IPS",
+        ""
+    ).split(",")
+    if value.strip()
+)
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True

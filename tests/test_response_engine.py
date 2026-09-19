@@ -282,3 +282,119 @@ def test_invalid_response_mode_rejected():
         ResponseEngine(
             response_mode="invalid"
         )
+
+
+def test_protected_target_never_calls_backend():
+
+    from engine.services.response_safety_policy import (
+        ResponseSafetyPolicy,
+    )
+
+    backend = FakeFirewallBackend()
+
+    policy = ResponseSafetyPolicy(
+        protected_ips=[
+            "192.168.20.128",
+        ]
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+        safety_policy=policy,
+    )
+
+    result = engine.execute(
+        {
+            "type": "BLOCK_IP",
+            "target": "192.168.20.128",
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "PROTECTED"
+    )
+
+    assert (
+        result["backend"]
+        == "safety_policy"
+    )
+
+    assert (
+        "protected"
+        in result["reason"].lower()
+    )
+
+    assert backend.calls == []
+
+
+def test_unprotected_target_reaches_backend():
+
+    from engine.services.response_safety_policy import (
+        ResponseSafetyPolicy,
+    )
+
+    backend = FakeFirewallBackend()
+
+    policy = ResponseSafetyPolicy(
+        protected_ips=[
+            "192.168.20.128",
+        ]
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+        safety_policy=policy,
+    )
+
+    result = engine.execute(
+        block_action()
+    )
+
+    assert (
+        result["status"]
+        == "SUCCESS"
+    )
+
+    assert backend.calls == [
+        TARGET
+    ]
+
+
+def test_protected_target_is_protected_even_in_simulate():
+
+    from engine.services.response_safety_policy import (
+        ResponseSafetyPolicy,
+    )
+
+    policy = ResponseSafetyPolicy(
+        protected_ips=[
+            "192.168.20.128",
+        ]
+    )
+
+    engine = ResponseEngine(
+        response_mode="simulate",
+        safety_policy=policy,
+    )
+
+    result = engine.execute(
+        {
+            "type": "BLOCK_IP",
+            "target": "192.168.20.128",
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "PROTECTED"
+    )
+
+    assert (
+        "192.168.20.128"
+        not in engine.blocked_ips
+    )

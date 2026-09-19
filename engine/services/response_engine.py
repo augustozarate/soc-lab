@@ -13,6 +13,7 @@ class ResponseEngine:
         self,
         response_mode="simulate",
         firewall_backend=None,
+        safety_policy=None,
     ):
 
         if response_mode not in {
@@ -30,6 +31,10 @@ class ResponseEngine:
 
         self.firewall_backend = (
             firewall_backend
+        )
+
+        self.safety_policy = (
+            safety_policy
         )
 
         # Simulation-only compatibility state.
@@ -145,6 +150,29 @@ class ResponseEngine:
             action["status"] = "FAILED"
             action["error"] = (
                 "Missing target IP"
+            )
+
+            return action
+
+        if (
+            self.safety_policy is not None
+            and
+            self.safety_policy.is_protected(
+                ip
+            )
+        ):
+
+            action["status"] = (
+                "PROTECTED"
+            )
+
+            action["reason"] = (
+                "Target is protected by "
+                "response safety policy"
+            )
+
+            action["backend"] = (
+                "safety_policy"
             )
 
             return action
