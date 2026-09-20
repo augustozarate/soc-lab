@@ -398,3 +398,170 @@ def test_protected_target_is_protected_even_in_simulate():
         "192.168.20.128"
         not in engine.blocked_ips
     )
+
+
+def test_execution_mode_simulated_block():
+
+    engine = ResponseEngine(
+        response_mode="simulate"
+    )
+
+    result = engine.execute(
+        block_action()
+    )
+
+    assert result["status"] == "SIMULATED"
+    assert result["execution_mode"] == "SIMULATED"
+    assert result["backend"] == "memory"
+
+
+def test_execution_mode_simulated_duplicate():
+
+    engine = ResponseEngine(
+        response_mode="simulate"
+    )
+
+    engine.execute(
+        block_action()
+    )
+
+    result = engine.execute(
+        block_action()
+    )
+
+    assert result["status"] == "SKIPPED"
+    assert result["execution_mode"] == "SIMULATED"
+    assert result["backend"] == "memory"
+
+
+def test_execution_mode_enforced_block():
+
+    backend = FakeFirewallBackend(
+        status="CREATED"
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+    )
+
+    result = engine.execute(
+        block_action()
+    )
+
+    assert result["status"] == "SUCCESS"
+    assert result["execution_mode"] == "ENFORCED"
+    assert result["backend"] == "windows_firewall"
+
+
+def test_execution_mode_protected_block():
+
+    from engine.services.response_safety_policy import (
+        ResponseSafetyPolicy,
+    )
+
+    backend = FakeFirewallBackend()
+
+    policy = ResponseSafetyPolicy(
+        protected_ips=[
+            "192.168.20.128",
+        ]
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+        safety_policy=policy,
+    )
+
+    result = engine.execute(
+        {
+            "type": "BLOCK_IP",
+            "target": "192.168.20.128",
+            "status": "PENDING",
+        }
+    )
+
+    assert result["status"] == "PROTECTED"
+    assert result["execution_mode"] == "PROTECTED"
+    assert result["backend"] == "safety_policy"
+    assert backend.calls == []
+
+
+def test_notify_soc_is_local_execution():
+
+    engine = ResponseEngine()
+
+    result = engine.execute(
+        {
+            "type": "NOTIFY_SOC",
+            "target": "SOC_TEAM",
+            "status": "PENDING",
+        }
+    )
+
+    assert result["status"] == "SUCCESS"
+    assert result["execution_mode"] == "LOCAL"
+    assert result["backend"] == "console"
+
+
+@pytest.mark.parametrize(
+    "action_type",
+    [
+        "ENABLE_MFA",
+        "ISOLATE_HOST",
+        "COLLECT_FORENSICS",
+    ],
+)
+def test_placeholder_actions_are_explicitly_simulated(
+    action_type
+):
+
+    engine = ResponseEngine()
+
+    result = engine.execute(
+        {
+            "type": action_type,
+            "target": TARGET,
+            "status": "PENDING",
+        }
+    )
+
+    assert result["status"] == "SUCCESS"
+    assert result["execution_mode"] == "SIMULATED"
+    assert result["backend"] == "simulation"
+
+
+def test_failed_unknown_action_does_not_invent_execution_mode():
+
+    engine = ResponseEngine()
+
+    result = engine.execute(
+        {
+            "type": "UNKNOWN_ACTION",
+            "target": TARGET,
+            "status": "PENDING",
+        }
+    )
+
+    assert result["status"] == "FAILED"
+    assert "execution_mode" not in result
+
+
+def test_failed_backend_does_not_claim_enforcement():
+
+    backend = FakeFirewallBackend(
+        error="Access is denied"
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+    )
+
+    result = engine.execute(
+        block_action()
+    )
+
+    assert result["status"] == "FAILED"
+    assert "execution_mode" not in result

@@ -175,6 +175,10 @@ class ResponseEngine:
                 "safety_policy"
             )
 
+            action["execution_mode"] = (
+                "PROTECTED"
+            )
+
             return action
 
         if self.response_mode == "simulate":
@@ -187,6 +191,10 @@ class ResponseEngine:
                 )
                 action["backend"] = (
                     "memory"
+                )
+
+                action["execution_mode"] = (
+                    "SIMULATED"
                 )
 
                 return action
@@ -211,6 +219,10 @@ class ResponseEngine:
                 "memory"
             )
 
+            action["execution_mode"] = (
+                "SIMULATED"
+            )
+
             return action
 
         if self.firewall_backend is None:
@@ -230,6 +242,10 @@ class ResponseEngine:
 
         action["backend"] = (
             "windows_firewall"
+        )
+
+        action["execution_mode"] = (
+            "ENFORCED"
         )
 
         action["backend_status"] = (
@@ -268,6 +284,14 @@ class ResponseEngine:
 
         action["status"] = "SUCCESS"
 
+        action["execution_mode"] = (
+            "LOCAL"
+        )
+
+        action["backend"] = (
+            "console"
+        )
+
         return action
 
     # =========================================
@@ -288,6 +312,14 @@ class ResponseEngine:
         # Simulated action
         action["status"] = "SUCCESS"
 
+        action["execution_mode"] = (
+            "SIMULATED"
+        )
+
+        action["backend"] = (
+            "simulation"
+        )
+
         return action
 
     # =========================================
@@ -307,6 +339,14 @@ class ResponseEngine:
 
         # Simulated action
         action["status"] = "SUCCESS"
+
+        action["execution_mode"] = (
+            "SIMULATED"
+        )
+
+        action["backend"] = (
+            "simulation"
+        )
 
         return action
 
@@ -333,5 +373,13 @@ class ResponseEngine:
 
         # Simulated action
         action["status"] = "SUCCESS"
+
+        action["execution_mode"] = (
+            "SIMULATED"
+        )
+
+        action["backend"] = (
+            "simulation"
+        )
 
         return action
