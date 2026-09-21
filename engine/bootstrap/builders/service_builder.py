@@ -37,6 +37,10 @@ from engine.services.response_block_lifecycle_service import (
 from engine.services.response_block_expiration_service import (
     ResponseBlockExpirationService
 )
+
+from engine.services.response_block_reconciliation_service import (
+    ResponseBlockReconciliationService
+)
 from engine.services.windows_firewall_backend import (
     WindowsFirewallBackend
 )
@@ -155,6 +159,18 @@ def build_services(container):
             response_engine=(
                 container.response_engine
             ),
+        )
+    )
+
+    container.response_block_reconciliation = (
+        ResponseBlockReconciliationService(
+            repository=(
+                container.response_block_repository
+            ),
+            response_engine=(
+                container.response_engine
+            ),
+            firewall_backend=firewall_backend,
         )
     )
 

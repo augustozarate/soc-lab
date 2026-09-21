@@ -139,6 +139,12 @@ class SOCRuntime:
                     .sweep()
                 )
 
+                (
+                    self.container
+                    .response_block_reconciliation
+                    .sweep()
+                )
+
             except Exception as error:
 
                 self.log(
