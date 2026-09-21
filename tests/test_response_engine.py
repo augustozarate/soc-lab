@@ -23,10 +23,29 @@ class FakeFirewallBackend:
         self.status = status
         self.error = error
         self.calls = []
+        self.unblock_calls = []
 
     def block(self, target):
 
         self.calls.append(
+            target
+        )
+
+        if self.error:
+
+            raise RuntimeError(
+                self.error
+            )
+
+        return {
+            "status": self.status,
+            "rule_name": RULE_NAME,
+            "target": target,
+        }
+
+    def unblock(self, target):
+
+        self.unblock_calls.append(
             target
         )
 
@@ -565,3 +584,298 @@ def test_failed_backend_does_not_claim_enforcement():
 
     assert result["status"] == "FAILED"
     assert "execution_mode" not in result
+
+
+def test_unblock_action_is_registered():
+
+    engine = ResponseEngine()
+
+    assert (
+        engine.registry.exists(
+            "UNBLOCK_IP"
+        )
+        is True
+    )
+
+
+def test_simulated_unblock_removes_simulated_state():
+
+    engine = ResponseEngine(
+        response_mode="simulate"
+    )
+
+    engine.execute(
+        block_action()
+    )
+
+    assert (
+        TARGET
+        in engine.blocked_ips
+    )
+
+    result = engine.execute(
+        {
+            "type": "UNBLOCK_IP",
+            "target": TARGET,
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "SIMULATED"
+    )
+
+    assert (
+        result["execution_mode"]
+        == "SIMULATED"
+    )
+
+    assert (
+        result["backend"]
+        == "memory"
+    )
+
+    assert (
+        TARGET
+        not in engine.blocked_ips
+    )
+
+
+def test_simulated_unblock_missing_state_is_skipped():
+
+    engine = ResponseEngine(
+        response_mode="simulate"
+    )
+
+    result = engine.execute(
+        {
+            "type": "UNBLOCK_IP",
+            "target": TARGET,
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "SKIPPED"
+    )
+
+    assert (
+        result["execution_mode"]
+        == "SIMULATED"
+    )
+
+    assert (
+        result["backend"]
+        == "memory"
+    )
+
+
+@pytest.mark.parametrize(
+    "backend_status",
+    [
+        "REMOVED",
+        "MISSING",
+    ],
+)
+def test_enforced_unblock_uses_firewall_backend(
+    backend_status
+):
+
+    backend = FakeFirewallBackend(
+        status=backend_status
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+    )
+
+    result = engine.execute(
+        {
+            "type": "UNBLOCK_IP",
+            "target": TARGET,
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        backend.unblock_calls
+        == [TARGET]
+    )
+
+    assert (
+        backend.calls
+        == []
+    )
+
+    assert (
+        result["status"]
+        == "SUCCESS"
+    )
+
+    assert (
+        result["execution_mode"]
+        == "ENFORCED"
+    )
+
+    assert (
+        result["backend"]
+        == "windows_firewall"
+    )
+
+    assert (
+        result["backend_status"]
+        == backend_status
+    )
+
+    assert (
+        result["rule_name"]
+        == RULE_NAME
+    )
+
+
+def test_unblock_missing_target_fails():
+
+    engine = ResponseEngine(
+        response_mode="simulate"
+    )
+
+    result = engine.execute(
+        {
+            "type": "UNBLOCK_IP",
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "FAILED"
+    )
+
+    assert (
+        "Missing target IP"
+        in result["error"]
+    )
+
+    assert (
+        "execution_mode"
+        not in result
+    )
+
+
+def test_enforced_unblock_without_backend_fails():
+
+    engine = ResponseEngine(
+        response_mode="enforce"
+    )
+
+    result = engine.execute(
+        {
+            "type": "UNBLOCK_IP",
+            "target": TARGET,
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "FAILED"
+    )
+
+    assert (
+        "not configured"
+        in result["error"]
+    )
+
+    assert (
+        "execution_mode"
+        not in result
+    )
+
+
+def test_unblock_backend_failure_does_not_claim_enforcement():
+
+    backend = FakeFirewallBackend(
+        error="Access is denied"
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+    )
+
+    result = engine.execute(
+        {
+            "type": "UNBLOCK_IP",
+            "target": TARGET,
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "FAILED"
+    )
+
+    assert (
+        "Access is denied"
+        in result["error"]
+    )
+
+    assert (
+        "execution_mode"
+        not in result
+    )
+
+
+def test_unblock_protected_target_is_allowed():
+
+    from engine.services.response_safety_policy import (
+        ResponseSafetyPolicy,
+    )
+
+    backend = FakeFirewallBackend(
+        status="MISSING"
+    )
+
+    policy = ResponseSafetyPolicy(
+        protected_ips=[
+            "192.168.20.128",
+        ]
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=backend,
+        safety_policy=policy,
+    )
+
+    result = engine.execute(
+        {
+            "type": "UNBLOCK_IP",
+            "target": "192.168.20.128",
+            "status": "PENDING",
+        }
+    )
+
+    assert (
+        result["status"]
+        == "SUCCESS"
+    )
+
+    assert (
+        result["execution_mode"]
+        == "ENFORCED"
+    )
+
+    assert (
+        result["backend_status"]
+        == "MISSING"
+    )
+
+    assert (
+        backend.unblock_calls
+        == ["192.168.20.128"]
+    )

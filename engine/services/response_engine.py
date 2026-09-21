@@ -60,6 +60,11 @@ class ResponseEngine:
         )
 
         self.registry.register(
+            "UNBLOCK_IP",
+            self.unblock_ip
+        )
+
+        self.registry.register(
             "NOTIFY_SOC",
             self.notify_soc
         )
@@ -264,6 +269,117 @@ class ResponseEngine:
             "[ACTION]",
             (
                 f"Blocked IP {ip} "
+                "via Windows Firewall"
+            )
+        )
+
+        return action
+
+
+    # =========================================
+    # UNBLOCK IP
+    # =========================================
+
+    def unblock_ip(self, action):
+
+        ip = action.get(
+            "target"
+        )
+
+        if not ip:
+
+            action["status"] = "FAILED"
+            action["error"] = (
+                "Missing target IP"
+            )
+
+            return action
+
+        if self.response_mode == "simulate":
+
+            if ip not in self.blocked_ips:
+
+                action["status"] = "SKIPPED"
+
+                action["reason"] = (
+                    "IP is not simulated as blocked"
+                )
+
+                action["backend"] = (
+                    "memory"
+                )
+
+                action["execution_mode"] = (
+                    "SIMULATED"
+                )
+
+                return action
+
+            self.blocked_ips.remove(
+                ip
+            )
+
+            safe_print(
+                "[ACTION]",
+                (
+                    "Simulated unblock for IP "
+                    f"{ip}"
+                )
+            )
+
+            action["status"] = (
+                "SIMULATED"
+            )
+
+            action["backend"] = (
+                "memory"
+            )
+
+            action["execution_mode"] = (
+                "SIMULATED"
+            )
+
+            return action
+
+        if self.firewall_backend is None:
+
+            raise RuntimeError(
+                "Firewall backend is not "
+                "configured"
+            )
+
+        backend_result = (
+            self.firewall_backend.unblock(
+                ip
+            )
+        )
+
+        action["status"] = "SUCCESS"
+
+        action["backend"] = (
+            "windows_firewall"
+        )
+
+        action["execution_mode"] = (
+            "ENFORCED"
+        )
+
+        action["backend_status"] = (
+            backend_result.get(
+                "status"
+            )
+        )
+
+        action["rule_name"] = (
+            backend_result.get(
+                "rule_name"
+            )
+        )
+
+        safe_print(
+            "[ACTION]",
+            (
+                f"Unblocked IP {ip} "
                 "via Windows Firewall"
             )
         )
