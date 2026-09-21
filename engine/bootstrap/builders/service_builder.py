@@ -161,9 +161,6 @@ def build_services(container):
             repository=(
                 container.response_block_repository
             ),
-            response_engine=(
-                container.response_engine
-            ),
         )
     )
 

@@ -1,12 +1,37 @@
 from datetime import (
     datetime,
+    timedelta,
     timezone,
 )
+
+import tempfile
+
+from pathlib import Path
 
 import pytest
 
 from engine.services.response_block_expiration_service import (
     ResponseBlockExpirationService,
+)
+
+from engine.services.response_block_reconciliation_service import (
+    ResponseBlockReconciliationService,
+)
+
+from engine.services.response_engine import (
+    ResponseEngine,
+)
+
+from engine.storage.repositories.response_block_repository import (
+    ResponseBlockRepository,
+)
+
+from engine.storage.sqlite.database import (
+    Database,
+)
+
+from engine.storage.sqlite.migrations import (
+    MigrationRunner,
 )
 
 
@@ -35,10 +60,8 @@ class FakeRepository:
         )
 
         self.expired_calls = []
-        self.released_calls = []
-        self.failed_calls = []
-
         self.mark_expired_result = {}
+        self.mark_expired_errors = {}
 
     def list_expired(
         self,
@@ -62,344 +85,230 @@ class FakeRepository:
             )
         )
 
+        if target in self.mark_expired_errors:
+
+            raise self.mark_expired_errors[
+                target
+            ]
+
         return self.mark_expired_result.get(
             target,
             True,
         )
 
-    def mark_released(
-        self,
-        target,
-        now,
-    ):
 
-        self.released_calls.append(
-            (
-                target,
-                now,
-            )
-        )
-
-        return True
-
-    def mark_failed(
-        self,
-        target,
-        error,
-        now,
-    ):
-
-        self.failed_calls.append(
-            (
-                target,
-                str(error),
-                now,
-            )
-        )
-
-        return True
-
-
-class FakeEngine:
+class FakeFirewall:
 
     def __init__(
         self,
-        results=None,
-        errors=None,
+        blocked=None,
     ):
 
-        self.results = (
-            results or {}
+        self.blocked = set(
+            blocked or []
         )
 
-        self.errors = (
-            errors or {}
-        )
+        self.block_calls = []
+        self.unblock_calls = []
+        self.query_calls = []
 
-        self.calls = []
-
-    def execute(
+    def is_blocked(
         self,
-        action,
+        target,
     ):
 
-        self.calls.append(
-            dict(action)
-        )
-
-        target = action["target"]
-
-        if target in self.errors:
-            raise self.errors[target]
-
-        result = self.results[
+        self.query_calls.append(
             target
-        ]
-
-        return dict(
-            result
         )
+
+        return (
+            target
+            in self.blocked
+        )
+
+    def block(
+        self,
+        target,
+    ):
+
+        self.block_calls.append(
+            target
+        )
+
+        existed = (
+            target
+            in self.blocked
+        )
+
+        self.blocked.add(
+            target
+        )
+
+        return {
+            "status": (
+                "EXISTS"
+                if existed
+                else "CREATED"
+            ),
+            "target": target,
+            "rule_name": (
+                "SOC-LAB-BLOCK-"
+                + target.replace(
+                    ".",
+                    "-",
+                )
+            ),
+        }
+
+    def unblock(
+        self,
+        target,
+    ):
+
+        self.unblock_calls.append(
+            target
+        )
+
+        existed = (
+            target
+            in self.blocked
+        )
+
+        self.blocked.discard(
+            target
+        )
+
+        return {
+            "status": (
+                "REMOVED"
+                if existed
+                else "MISSING"
+            ),
+            "target": target,
+            "rule_name": (
+                "SOC-LAB-BLOCK-"
+                + target.replace(
+                    ".",
+                    "-",
+                )
+            ),
+        }
 
 
 def row(
     target=TARGET,
+    backend="windows_firewall",
+    execution_mode="ENFORCED",
 ):
 
     return {
         "target": target,
         "status": "ACTIVE",
         "desired_state": "BLOCKED",
+        "backend": backend,
+        "execution_mode": execution_mode,
     }
 
 
 def service(
     repository,
-    engine,
 ):
 
     return ResponseBlockExpirationService(
         repository=repository,
-        response_engine=engine,
         now_provider=lambda: NOW,
     )
 
 
-@pytest.mark.parametrize(
-    "backend_status",
-    [
-        "REMOVED",
-        "MISSING",
-    ],
-)
-def test_enforced_release_converges(
-    backend_status,
-):
+def real_repository():
+
+    directory = tempfile.TemporaryDirectory()
+
+    db = Database(
+        str(
+            Path(directory.name)
+            / "soc.db"
+        )
+    )
+
+    MigrationRunner(
+        db
+    ).run()
+
+    repository = (
+        ResponseBlockRepository(
+            db
+        )
+    )
+
+    return (
+        directory,
+        repository,
+    )
+
+
+def test_enforced_expiration_only_marks_expired():
 
     repository = FakeRepository([
         row()
     ])
 
-    engine = FakeEngine(
-        results={
-            TARGET: {
-                "type": "UNBLOCK_IP",
-                "target": TARGET,
-                "status": "SUCCESS",
-                "execution_mode": "ENFORCED",
-                "backend": "windows_firewall",
-                "backend_status": backend_status,
-            }
-        }
-    )
-
     outcomes = service(
-        repository,
-        engine,
+        repository
     ).sweep()
 
-    assert (
-        repository.expired_calls
-        == [
-            (
-                TARGET,
-                NOW,
-            )
-        ]
+    assert repository.expired_calls == [
+        (
+            TARGET,
+            NOW,
+        )
+    ]
+
+    assert outcomes == [
+        {
+            "target": TARGET,
+            "status": "EXPIRED",
+            "desired_state": "UNBLOCKED",
+        }
+    ]
+
+
+def test_simulated_expiration_only_marks_expired():
+
+    repository = FakeRepository([
+        row(
+            backend="memory",
+            execution_mode="SIMULATED",
+        )
+    ])
+
+    outcomes = service(
+        repository
+    ).sweep()
+
+    assert outcomes[0]["status"] == (
+        "EXPIRED"
     )
 
-    assert (
-        repository.released_calls
-        == [
-            (
-                TARGET,
-                NOW,
-            )
-        ]
-    )
-
-    assert (
-        repository.failed_calls
-        == []
-    )
-
-    assert (
-        outcomes[0]["status"]
-        == "RELEASED"
-    )
+    assert outcomes[0][
+        "desired_state"
+    ] == "UNBLOCKED"
 
 
-def test_simulated_existing_release_converges():
+def test_expiration_outcome_has_no_response_action():
 
     repository = FakeRepository([
         row()
     ])
 
-    engine = FakeEngine(
-        results={
-            TARGET: {
-                "type": "UNBLOCK_IP",
-                "target": TARGET,
-                "status": "SIMULATED",
-                "execution_mode": "SIMULATED",
-                "backend": "memory",
-            }
-        }
-    )
-
     outcomes = service(
-        repository,
-        engine,
+        repository
     ).sweep()
 
-    assert (
-        outcomes[0]["status"]
-        == "RELEASED"
-    )
-
-    assert len(
-        repository.released_calls
-    ) == 1
+    assert "action" not in outcomes[0]
 
 
-def test_simulated_missing_release_converges():
-
-    repository = FakeRepository([
-        row()
-    ])
-
-    engine = FakeEngine(
-        results={
-            TARGET: {
-                "type": "UNBLOCK_IP",
-                "target": TARGET,
-                "status": "SKIPPED",
-                "execution_mode": "SIMULATED",
-                "backend": "memory",
-                "reason": (
-                    "IP is not simulated "
-                    "as blocked"
-                ),
-            }
-        }
-    )
-
-    outcomes = service(
-        repository,
-        engine,
-    ).sweep()
-
-    assert (
-        outcomes[0]["status"]
-        == "RELEASED"
-    )
-
-
-def test_wrong_skipped_reason_is_failure():
-
-    repository = FakeRepository([
-        row()
-    ])
-
-    engine = FakeEngine(
-        results={
-            TARGET: {
-                "type": "UNBLOCK_IP",
-                "target": TARGET,
-                "status": "SKIPPED",
-                "execution_mode": "SIMULATED",
-                "backend": "memory",
-                "reason": "different reason",
-            }
-        }
-    )
-
-    outcomes = service(
-        repository,
-        engine,
-    ).sweep()
-
-    assert (
-        outcomes[0]["status"]
-        == "FAILED"
-    )
-
-    assert len(
-        repository.failed_calls
-    ) == 1
-
-    assert (
-        repository.released_calls
-        == []
-    )
-
-
-def test_execution_exception_marks_failed():
-
-    repository = FakeRepository([
-        row()
-    ])
-
-    engine = FakeEngine(
-        errors={
-            TARGET: RuntimeError(
-                "firewall unavailable"
-            )
-        }
-    )
-
-    outcomes = service(
-        repository,
-        engine,
-    ).sweep()
-
-    assert (
-        outcomes[0]["status"]
-        == "FAILED"
-    )
-
-    assert len(
-        repository.failed_calls
-    ) == 1
-
-    assert (
-        "firewall unavailable"
-        in repository.failed_calls[0][1]
-    )
-
-
-def test_non_convergent_result_marks_failed():
-
-    repository = FakeRepository([
-        row()
-    ])
-
-    engine = FakeEngine(
-        results={
-            TARGET: {
-                "type": "UNBLOCK_IP",
-                "target": TARGET,
-                "status": "FAILED",
-                "error": "backend failure",
-            }
-        }
-    )
-
-    outcomes = service(
-        repository,
-        engine,
-    ).sweep()
-
-    assert (
-        outcomes[0]["status"]
-        == "FAILED"
-    )
-
-    assert len(
-        repository.failed_calls
-    ) == 1
-
-
-def test_mark_expired_false_skips_execution():
+def test_mark_expired_false_is_skipped():
 
     repository = FakeRepository([
         row()
@@ -409,49 +318,56 @@ def test_mark_expired_false_skips_execution():
         TARGET
     ] = False
 
-    engine = FakeEngine()
-
     outcomes = service(
-        repository,
-        engine,
+        repository
     ).sweep()
 
-    assert engine.calls == []
-
-    assert (
-        outcomes[0]["status"]
-        == "SKIPPED"
+    assert outcomes[0]["status"] == (
+        "SKIPPED"
     )
 
 
-def test_one_target_failure_does_not_stop_next_target():
+def test_missing_target_is_skipped():
+
+    repository = FakeRepository([
+        {
+            "status": "ACTIVE",
+            "desired_state": "BLOCKED",
+        }
+    ])
+
+    outcomes = service(
+        repository
+    ).sweep()
+
+    assert outcomes == [
+        {
+            "target": None,
+            "status": "SKIPPED",
+            "reason": (
+                "Expired row has no target"
+            ),
+        }
+    ]
+
+    assert repository.expired_calls == []
+
+
+def test_one_transition_failure_does_not_stop_next_target():
 
     repository = FakeRepository([
         row(TARGET),
         row(TARGET_2),
     ])
 
-    engine = FakeEngine(
-        errors={
-            TARGET: RuntimeError(
-                "first failed"
-            ),
-        },
-        results={
-            TARGET_2: {
-                "type": "UNBLOCK_IP",
-                "target": TARGET_2,
-                "status": "SUCCESS",
-                "execution_mode": "ENFORCED",
-                "backend": "windows_firewall",
-                "backend_status": "MISSING",
-            },
-        },
+    repository.mark_expired_errors[
+        TARGET
+    ] = RuntimeError(
+        "database write failed"
     )
 
     outcomes = service(
-        repository,
-        engine,
+        repository
     ).sweep()
 
     assert [
@@ -459,89 +375,18 @@ def test_one_target_failure_does_not_stop_next_target():
         for item in outcomes
     ] == [
         "FAILED",
-        "RELEASED",
+        "EXPIRED",
     ]
 
-    assert len(
-        engine.calls
-    ) == 2
-
-    assert len(
-        repository.failed_calls
-    ) == 1
-
-    assert len(
-        repository.released_calls
-    ) == 1
-
-
-def test_expiration_happens_before_unblock():
-
-    order = []
-
-    class Repository(
-        FakeRepository
-    ):
-
-        def mark_expired(
-            self,
-            target,
-            now,
-        ):
-
-            order.append(
-                "mark_expired"
-            )
-
-            return True
-
-        def mark_released(
-            self,
-            target,
-            now,
-        ):
-
-            order.append(
-                "mark_released"
-            )
-
-            return True
-
-    class Engine(
-        FakeEngine
-    ):
-
-        def execute(
-            self,
-            action,
-        ):
-
-            order.append(
-                "execute"
-            )
-
-            return {
-                "type": "UNBLOCK_IP",
-                "target": TARGET,
-                "status": "SUCCESS",
-                "execution_mode": "ENFORCED",
-                "backend": "windows_firewall",
-                "backend_status": "REMOVED",
-            }
-
-    repository = Repository([
-        row()
-    ])
-
-    service(
-        repository,
-        Engine(),
-    ).sweep()
-
-    assert order == [
-        "mark_expired",
-        "execute",
-        "mark_released",
+    assert repository.expired_calls == [
+        (
+            TARGET,
+            NOW,
+        ),
+        (
+            TARGET_2,
+            NOW,
+        ),
     ]
 
 
@@ -549,12 +394,9 @@ def test_naive_clock_rejected():
 
     repository = FakeRepository()
 
-    engine = FakeEngine()
-
     expiration = (
         ResponseBlockExpirationService(
             repository=repository,
-            response_engine=engine,
             now_provider=lambda: datetime(
                 2026,
                 9,
@@ -589,7 +431,6 @@ def test_list_expired_failure_propagates():
     expiration = (
         ResponseBlockExpirationService(
             repository=Repository(),
-            response_engine=FakeEngine(),
             now_provider=lambda: NOW,
         )
     )
@@ -602,65 +443,15 @@ def test_list_expired_failure_propagates():
         expiration.sweep()
 
 
-def test_failed_block_past_ttl_can_reenter_expiration_flow():
+def test_failed_block_past_ttl_becomes_reconcilable_unblocked():
 
-    from pathlib import Path
-    import tempfile
-
-    from datetime import timedelta
-
-    from engine.services.response_engine import (
-        ResponseEngine,
+    directory, repository = (
+        real_repository()
     )
 
-    from engine.storage.repositories.response_block_repository import (
-        ResponseBlockRepository,
-    )
+    try:
 
-    from engine.storage.sqlite.database import (
-        Database,
-    )
-
-    from engine.storage.sqlite.migrations import (
-        MigrationRunner,
-    )
-
-
-    target = "192.168.20.152"
-
-    with tempfile.TemporaryDirectory() as directory:
-
-        db = Database(
-            str(
-                Path(directory)
-                / "soc.db"
-            )
-        )
-
-        MigrationRunner(
-            db
-        ).run()
-
-        repository = (
-            ResponseBlockRepository(
-                db
-            )
-        )
-
-        engine = ResponseEngine(
-            response_mode="simulate"
-        )
-
-        engine.execute({
-            "type": "BLOCK_IP",
-            "target": target,
-            "status": "PENDING",
-        })
-
-        assert (
-            target
-            in engine.blocked_ips
-        )
+        target = "192.168.20.152"
 
         repository.upsert_active(
             target=target,
@@ -685,37 +476,201 @@ def test_failed_block_past_ttl_can_reenter_expiration_flow():
             ),
         )
 
-        failed = repository.get(
+        outcomes = (
+            ResponseBlockExpirationService(
+                repository=repository,
+                now_provider=lambda: NOW,
+            )
+            .sweep()
+        )
+
+        assert outcomes == [
+            {
+                "target": target,
+                "status": "EXPIRED",
+                "desired_state": "UNBLOCKED",
+            }
+        ]
+
+        final = repository.get(
             target
         )
 
         assert (
-            failed["status"]
-            == "FAILED"
+            final["status"]
+            == "EXPIRED"
         )
 
         assert (
-            failed["desired_state"]
-            == "BLOCKED"
+            final["desired_state"]
+            == "UNBLOCKED"
+        )
+
+        reconcilable = (
+            repository.list_reconcilable(
+                NOW
+            )
+        )
+
+        assert [
+            item["target"]
+            for item in reconcilable
+        ] == [
+            target
+        ]
+
+    finally:
+
+        directory.cleanup()
+
+
+def test_expiration_preserves_backend_and_evidence():
+
+    directory, repository = (
+        real_repository()
+    )
+
+    try:
+
+        expires_at = (
+            NOW
+            - timedelta(
+                seconds=1
+            )
+        )
+
+        repository.upsert_active(
+            target=TARGET,
+            expires_at=expires_at,
+            execution_mode="ENFORCED",
+            backend="windows_firewall",
+            rule_name=(
+                "SOC-LAB-BLOCK-"
+                "192-168-20-130"
+            ),
+            source_incident_id=(
+                "expiration-evidence"
+            ),
+        )
+
+        before = repository.get(
+            TARGET
+        )
+
+        ResponseBlockExpirationService(
+            repository=repository,
+            now_provider=lambda: NOW,
+        ).sweep()
+
+        after = repository.get(
+            TARGET
+        )
+
+        assert (
+            after["status"]
+            == "EXPIRED"
+        )
+
+        assert (
+            after["desired_state"]
+            == "UNBLOCKED"
+        )
+
+        for field in (
+            "created_at",
+            "expires_at",
+            "execution_mode",
+            "backend",
+            "rule_name",
+            "source_incident_id",
+        ):
+
+            assert (
+                after[field]
+                == before[field]
+            )
+
+    finally:
+
+        directory.cleanup()
+
+
+def test_memory_history_expiration_never_touches_firewall_after_enforce_restart():
+
+    directory, repository = (
+        real_repository()
+    )
+
+    try:
+
+        target = "192.168.20.245"
+
+        repository.upsert_active(
+            target=target,
+            expires_at=(
+                NOW
+                - timedelta(
+                    seconds=1
+                )
+            ),
+            execution_mode="SIMULATED",
+            backend="memory",
+        )
+
+        firewall = FakeFirewall(
+            blocked={
+                target
+            }
+        )
+
+        engine = ResponseEngine(
+            response_mode="enforce",
+            firewall_backend=firewall,
         )
 
         expiration = (
             ResponseBlockExpirationService(
                 repository=repository,
-                response_engine=engine,
                 now_provider=lambda: NOW,
             )
         )
 
-        outcomes = expiration.sweep()
-
-        assert len(
-            outcomes
-        ) == 1
+        expiration_outcomes = (
+            expiration.sweep()
+        )
 
         assert (
-            outcomes[0]["status"]
-            == "RELEASED"
+            expiration_outcomes[0][
+                "status"
+            ]
+            == "EXPIRED"
+        )
+
+        assert firewall.unblock_calls == []
+
+        reconciliation = (
+            ResponseBlockReconciliationService(
+                repository=repository,
+                response_engine=engine,
+                firewall_backend=firewall,
+                now_provider=lambda: NOW,
+            )
+        )
+
+        recovery = (
+            reconciliation.sweep()
+        )
+
+        assert (
+            recovery[0]["status"]
+            == "CONVERGED"
+        )
+
+        assert firewall.unblock_calls == []
+
+        assert (
+            target
+            in firewall.blocked
         )
 
         final = repository.get(
@@ -732,7 +687,123 @@ def test_failed_block_past_ttl_can_reenter_expiration_flow():
             == "UNBLOCKED"
         )
 
+    finally:
+
+        directory.cleanup()
+
+
+def test_windows_history_expiration_unblocks_windows_after_simulate_restart():
+
+    directory, repository = (
+        real_repository()
+    )
+
+    try:
+
+        target = "192.168.20.246"
+
+        repository.upsert_active(
+            target=target,
+            expires_at=(
+                NOW
+                - timedelta(
+                    seconds=1
+                )
+            ),
+            execution_mode="ENFORCED",
+            backend="windows_firewall",
+        )
+
+        firewall = FakeFirewall(
+            blocked={
+                target
+            }
+        )
+
+        engine = ResponseEngine(
+            response_mode="simulate"
+        )
+
+        expiration = (
+            ResponseBlockExpirationService(
+                repository=repository,
+                now_provider=lambda: NOW,
+            )
+        )
+
+        expiration_outcomes = (
+            expiration.sweep()
+        )
+
+        assert (
+            expiration_outcomes[0][
+                "status"
+            ]
+            == "EXPIRED"
+        )
+
+        assert firewall.unblock_calls == []
+
         assert (
             target
-            not in engine.blocked_ips
+            in firewall.blocked
         )
+
+        reconciliation = (
+            ResponseBlockReconciliationService(
+                repository=repository,
+                response_engine=engine,
+                firewall_backend=firewall,
+                now_provider=lambda: NOW,
+            )
+        )
+
+        recovery = (
+            reconciliation.sweep()
+        )
+
+        assert (
+            recovery[0]["status"]
+            == "REPAIRED"
+        )
+
+        assert (
+            recovery[0]["action"][
+                "backend"
+            ]
+            == "windows_firewall"
+        )
+
+        assert (
+            recovery[0]["action"][
+                "execution_mode"
+            ]
+            == "ENFORCED"
+        )
+
+        assert firewall.unblock_calls == [
+            target
+        ]
+
+        assert (
+            target
+            not in firewall.blocked
+        )
+
+        final = repository.get(
+            target
+        )
+
+        assert (
+            final["status"]
+            == "RELEASED"
+        )
+
+        assert (
+            final["desired_state"]
+            == "UNBLOCKED"
+        )
+
+    finally:
+
+        directory.cleanup()
