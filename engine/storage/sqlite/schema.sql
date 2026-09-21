@@ -78,3 +78,42 @@ ON events(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_processed_alerts_status
 ON processed_alerts(status);
+
+CREATE TABLE IF NOT EXISTS response_blocks (
+    target TEXT PRIMARY KEY,
+
+    desired_state TEXT NOT NULL
+        CHECK (
+            desired_state IN (
+                'BLOCKED',
+                'UNBLOCKED'
+            )
+        ),
+
+    status TEXT NOT NULL
+        CHECK (
+            status IN (
+                'ACTIVE',
+                'EXPIRED',
+                'RELEASED',
+                'FAILED'
+            )
+        ),
+
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+
+    execution_mode TEXT,
+    backend TEXT,
+    rule_name TEXT,
+
+    source_incident_id TEXT,
+    last_error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_response_blocks_status
+ON response_blocks(status);
+
+CREATE INDEX IF NOT EXISTS idx_response_blocks_expires
+ON response_blocks(expires_at);

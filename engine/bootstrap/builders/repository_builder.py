@@ -19,6 +19,10 @@ from engine.storage.repositories.processed_alert_repository import (
     ProcessedAlertRepository
 )
 
+from engine.storage.repositories.response_block_repository import (
+    ResponseBlockRepository
+)
+
 
 def build_repositories(
     container,
@@ -61,6 +65,12 @@ def build_repositories(
 
     container.processed_alert_repository = (
         ProcessedAlertRepository(
+            container.database
+        )
+    )
+
+    container.response_block_repository = (
+        ResponseBlockRepository(
             container.database
         )
     )
