@@ -274,6 +274,102 @@ class ResponseBlockRepository:
             for row in rows
         ]
 
+    def list_reconcilable(
+        self,
+        now,
+    ):
+
+        now = _normalize_utc_iso(
+            now,
+            "now",
+        )
+
+        with self.db.connect() as conn:
+
+            rows = conn.execute(
+                """
+                SELECT
+                    target,
+                    desired_state,
+                    status,
+                    created_at,
+                    updated_at,
+                    expires_at,
+                    execution_mode,
+                    backend,
+                    rule_name,
+                    source_incident_id,
+                    last_error
+                FROM response_blocks
+                WHERE (
+                    desired_state = 'BLOCKED'
+                    AND status IN (
+                        'ACTIVE',
+                        'FAILED'
+                    )
+                    AND expires_at > ?
+                )
+                OR (
+                    desired_state = 'UNBLOCKED'
+                    AND status IN (
+                        'EXPIRED',
+                        'FAILED'
+                    )
+                )
+                ORDER BY
+                    updated_at ASC,
+                    target ASC
+                """,
+                (
+                    now,
+                ),
+            ).fetchall()
+
+        return [
+            dict(row)
+            for row in rows
+        ]
+
+    def mark_blocked_converged(
+        self,
+        target,
+        now,
+    ):
+
+        now = _normalize_utc_iso(
+            now,
+            "now",
+        )
+
+        with self.db.connect() as conn:
+
+            cursor = conn.execute(
+                """
+                UPDATE response_blocks
+                SET
+                    status = 'ACTIVE',
+                    updated_at = ?,
+                    last_error = NULL
+                WHERE target = ?
+                  AND desired_state = 'BLOCKED'
+                  AND status IN (
+                      'ACTIVE',
+                      'FAILED'
+                  )
+                """,
+                (
+                    now,
+                    target,
+                ),
+            )
+
+            changed = (
+                cursor.rowcount
+                == 1
+            )
+
+        return changed
+
     def mark_expired(
         self,
         target,

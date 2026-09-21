@@ -815,3 +815,377 @@ def test_failed_unblocked_row_is_not_ttl_candidate(
         )
         is False
     )
+
+
+def test_list_reconcilable_state_matrix(
+    repository,
+):
+
+    now = utc(
+        2026,
+        9,
+        21,
+        17,
+        0,
+    )
+
+    active_blocked = "192.168.20.180"
+    failed_blocked = "192.168.20.181"
+    expired_blocked = "192.168.20.182"
+    expired_unblocked = "192.168.20.183"
+    failed_unblocked = "192.168.20.184"
+    released_unblocked = "192.168.20.185"
+
+
+    # ACTIVE / BLOCKED / TTL still valid
+
+    repository.upsert_active(
+        target=active_blocked,
+        expires_at=utc(
+            2026,
+            9,
+            21,
+            17,
+            5,
+        ),
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+
+    # FAILED / BLOCKED / TTL still valid
+
+    repository.upsert_active(
+        target=failed_blocked,
+        expires_at=utc(
+            2026,
+            9,
+            21,
+            17,
+            5,
+        ),
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_failed(
+        failed_blocked,
+        "block drift",
+        now,
+    )
+
+
+    # FAILED / BLOCKED / already expired:
+    # belongs to D5, not G6-E.
+
+    repository.upsert_active(
+        target=expired_blocked,
+        expires_at=utc(
+            2026,
+            9,
+            21,
+            16,
+            59,
+        ),
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_failed(
+        expired_blocked,
+        "old block drift",
+        now,
+    )
+
+
+    # EXPIRED / UNBLOCKED
+
+    repository.upsert_active(
+        target=expired_unblocked,
+        expires_at=utc(
+            2026,
+            9,
+            21,
+            16,
+            59,
+        ),
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_expired(
+        expired_unblocked,
+        now,
+    )
+
+
+    # FAILED / UNBLOCKED
+
+    repository.upsert_active(
+        target=failed_unblocked,
+        expires_at=utc(
+            2026,
+            9,
+            21,
+            16,
+            59,
+        ),
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_expired(
+        failed_unblocked,
+        now,
+    )
+
+    repository.mark_failed(
+        failed_unblocked,
+        "release drift",
+        now,
+    )
+
+
+    # RELEASED / UNBLOCKED is terminal
+    # for the initial reconciler.
+
+    repository.upsert_active(
+        target=released_unblocked,
+        expires_at=utc(
+            2026,
+            9,
+            21,
+            16,
+            59,
+        ),
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_expired(
+        released_unblocked,
+        now,
+    )
+
+    repository.mark_released(
+        released_unblocked,
+        now,
+    )
+
+
+    rows = repository.list_reconcilable(
+        now
+    )
+
+    targets = {
+        row["target"]
+        for row in rows
+    }
+
+
+    assert targets == {
+        active_blocked,
+        failed_blocked,
+        expired_unblocked,
+        failed_unblocked,
+    }
+
+    assert (
+        expired_blocked
+        not in targets
+    )
+
+    assert (
+        released_unblocked
+        not in targets
+    )
+
+
+def test_mark_blocked_converged_preserves_ttl(
+    repository,
+):
+
+    target = "192.168.20.186"
+
+    expires_at = utc(
+        2026,
+        9,
+        21,
+        18,
+        0,
+    )
+
+    failed_at = utc(
+        2026,
+        9,
+        21,
+        17,
+        0,
+    )
+
+    repaired_at = utc(
+        2026,
+        9,
+        21,
+        17,
+        1,
+    )
+
+
+    repository.upsert_active(
+        target=target,
+        expires_at=expires_at,
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+        rule_name=(
+            "SOC-LAB-BLOCK-"
+            "192-168-20-186"
+        ),
+        source_incident_id=(
+            "incident-reconcile"
+        ),
+    )
+
+
+    before_failure = repository.get(
+        target
+    )
+
+
+    repository.mark_failed(
+        target,
+        "rule disappeared",
+        failed_at,
+    )
+
+
+    failed = repository.get(
+        target
+    )
+
+    assert (
+        failed["status"]
+        == "FAILED"
+    )
+
+    assert (
+        failed["desired_state"]
+        == "BLOCKED"
+    )
+
+    assert (
+        failed["last_error"]
+        == "rule disappeared"
+    )
+
+
+    changed = (
+        repository.mark_blocked_converged(
+            target,
+            repaired_at,
+        )
+    )
+
+    assert changed is True
+
+
+    repaired = repository.get(
+        target
+    )
+
+
+    assert (
+        repaired["status"]
+        == "ACTIVE"
+    )
+
+    assert (
+        repaired["desired_state"]
+        == "BLOCKED"
+    )
+
+    assert (
+        repaired["last_error"]
+        is None
+    )
+
+
+    # Reconciliation must NOT renew TTL.
+
+    assert (
+        repaired["expires_at"]
+        == before_failure["expires_at"]
+    )
+
+
+    # Reconciliation must NOT replace
+    # ownership/evidence metadata.
+
+    assert (
+        repaired["rule_name"]
+        == before_failure["rule_name"]
+    )
+
+    assert (
+        repaired["source_incident_id"]
+        == before_failure[
+            "source_incident_id"
+        ]
+    )
+
+    assert (
+        repaired["created_at"]
+        == before_failure["created_at"]
+    )
+
+
+def test_mark_blocked_converged_rejects_unblocked_state(
+    repository,
+):
+
+    target = "192.168.20.187"
+
+    now = utc(
+        2026,
+        9,
+        21,
+        17,
+        0,
+    )
+
+
+    repository.upsert_active(
+        target=target,
+        expires_at=now,
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_expired(
+        target,
+        now,
+    )
+
+
+    assert (
+        repository.mark_blocked_converged(
+            target,
+            now,
+        )
+        is False
+    )
+
+
+    row = repository.get(
+        target
+    )
+
+    assert (
+        row["desired_state"]
+        == "UNBLOCKED"
+    )
+
+    assert (
+        row["status"]
+        == "EXPIRED"
+    )
