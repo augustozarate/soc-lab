@@ -133,6 +133,12 @@ class SOCRuntime:
                     self.container.reader.commit()
                     self._update_runtime_gauges()
 
+                (
+                    self.container
+                    .response_block_expiration
+                    .sweep()
+                )
+
             except Exception as error:
 
                 self.log(

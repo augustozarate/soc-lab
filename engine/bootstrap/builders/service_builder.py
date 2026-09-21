@@ -33,6 +33,10 @@ from engine.services.response_engine import (
 from engine.services.response_block_lifecycle_service import (
     ResponseBlockLifecycleService
 )
+
+from engine.services.response_block_expiration_service import (
+    ResponseBlockExpirationService
+)
 from engine.services.windows_firewall_backend import (
     WindowsFirewallBackend
 )
@@ -139,6 +143,17 @@ def build_services(container):
             ),
             ttl_seconds=(
                 RESPONSE_BLOCK_TTL_SECONDS
+            ),
+        )
+    )
+
+    container.response_block_expiration = (
+        ResponseBlockExpirationService(
+            repository=(
+                container.response_block_repository
+            ),
+            response_engine=(
+                container.response_engine
             ),
         )
     )
