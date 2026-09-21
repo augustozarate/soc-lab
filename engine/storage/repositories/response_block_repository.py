@@ -254,7 +254,11 @@ class ResponseBlockRepository:
                     source_incident_id,
                     last_error
                 FROM response_blocks
-                WHERE status = 'ACTIVE'
+                WHERE desired_state = 'BLOCKED'
+                  AND status IN (
+                      'ACTIVE',
+                      'FAILED'
+                  )
                   AND expires_at <= ?
                 ORDER BY
                     expires_at ASC,
@@ -292,7 +296,11 @@ class ResponseBlockRepository:
                     updated_at = ?,
                     last_error = NULL
                 WHERE target = ?
-                  AND status = 'ACTIVE'
+                  AND desired_state = 'BLOCKED'
+                  AND status IN (
+                      'ACTIVE',
+                      'FAILED'
+                  )
                 """,
                 (
                     now,

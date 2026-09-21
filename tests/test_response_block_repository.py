@@ -642,3 +642,176 @@ def test_repository_builder_exposes_response_block_repository(
         ).fetchone()
 
     assert row is not None
+
+
+def test_failed_block_is_still_expirable(
+    repository,
+):
+
+    target = "192.168.20.150"
+
+    expiry = utc(
+        2026,
+        9,
+        21,
+        4,
+        0,
+    )
+
+    now = utc(
+        2026,
+        9,
+        21,
+        4,
+        1,
+    )
+
+    repository.upsert_active(
+        target=target,
+        expires_at=expiry,
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_failed(
+        target,
+        "temporary backend failure",
+        utc(
+            2026,
+            9,
+            21,
+            3,
+            59,
+        ),
+    )
+
+    failed = repository.get(
+        target
+    )
+
+    assert (
+        failed["status"]
+        == "FAILED"
+    )
+
+    assert (
+        failed["desired_state"]
+        == "BLOCKED"
+    )
+
+    expired = repository.list_expired(
+        now
+    )
+
+    assert [
+        row["target"]
+        for row in expired
+    ] == [
+        target
+    ]
+
+    assert (
+        repository.mark_expired(
+            target,
+            now,
+        )
+        is True
+    )
+
+    result = repository.get(
+        target
+    )
+
+    assert (
+        result["status"]
+        == "EXPIRED"
+    )
+
+    assert (
+        result["desired_state"]
+        == "UNBLOCKED"
+    )
+
+    assert result["last_error"] is None
+
+
+def test_failed_unblocked_row_is_not_ttl_candidate(
+    repository,
+):
+
+    target = "192.168.20.151"
+
+    expiry = utc(
+        2026,
+        9,
+        21,
+        4,
+        0,
+    )
+
+    now = utc(
+        2026,
+        9,
+        21,
+        4,
+        1,
+    )
+
+    repository.upsert_active(
+        target=target,
+        expires_at=expiry,
+        execution_mode="ENFORCED",
+        backend="windows_firewall",
+    )
+
+    repository.mark_expired(
+        target,
+        utc(
+            2026,
+            9,
+            21,
+            4,
+            0,
+        ),
+    )
+
+    repository.mark_failed(
+        target,
+        "release failed",
+        utc(
+            2026,
+            9,
+            21,
+            4,
+            0,
+        ),
+    )
+
+    row = repository.get(
+        target
+    )
+
+    assert (
+        row["status"]
+        == "FAILED"
+    )
+
+    assert (
+        row["desired_state"]
+        == "UNBLOCKED"
+    )
+
+    assert (
+        repository.list_expired(
+            now
+        )
+        == []
+    )
+
+    assert (
+        repository.mark_expired(
+            target,
+            now,
+        )
+        is False
+    )

@@ -600,3 +600,139 @@ def test_list_expired_failure_propagates():
     ):
 
         expiration.sweep()
+
+
+def test_failed_block_past_ttl_can_reenter_expiration_flow():
+
+    from pathlib import Path
+    import tempfile
+
+    from datetime import timedelta
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    from engine.storage.repositories.response_block_repository import (
+        ResponseBlockRepository,
+    )
+
+    from engine.storage.sqlite.database import (
+        Database,
+    )
+
+    from engine.storage.sqlite.migrations import (
+        MigrationRunner,
+    )
+
+
+    target = "192.168.20.152"
+
+    with tempfile.TemporaryDirectory() as directory:
+
+        db = Database(
+            str(
+                Path(directory)
+                / "soc.db"
+            )
+        )
+
+        MigrationRunner(
+            db
+        ).run()
+
+        repository = (
+            ResponseBlockRepository(
+                db
+            )
+        )
+
+        engine = ResponseEngine(
+            response_mode="simulate"
+        )
+
+        engine.execute({
+            "type": "BLOCK_IP",
+            "target": target,
+            "status": "PENDING",
+        })
+
+        assert (
+            target
+            in engine.blocked_ips
+        )
+
+        repository.upsert_active(
+            target=target,
+            expires_at=(
+                NOW
+                - timedelta(
+                    seconds=1
+                )
+            ),
+            execution_mode="SIMULATED",
+            backend="memory",
+        )
+
+        repository.mark_failed(
+            target,
+            "temporary failure",
+            (
+                NOW
+                - timedelta(
+                    seconds=2
+                )
+            ),
+        )
+
+        failed = repository.get(
+            target
+        )
+
+        assert (
+            failed["status"]
+            == "FAILED"
+        )
+
+        assert (
+            failed["desired_state"]
+            == "BLOCKED"
+        )
+
+        expiration = (
+            ResponseBlockExpirationService(
+                repository=repository,
+                response_engine=engine,
+                now_provider=lambda: NOW,
+            )
+        )
+
+        outcomes = expiration.sweep()
+
+        assert len(
+            outcomes
+        ) == 1
+
+        assert (
+            outcomes[0]["status"]
+            == "RELEASED"
+        )
+
+        final = repository.get(
+            target
+        )
+
+        assert (
+            final["status"]
+            == "RELEASED"
+        )
+
+        assert (
+            final["desired_state"]
+            == "UNBLOCKED"
+        )
+
+        assert (
+            target
+            not in engine.blocked_ips
+        )
