@@ -362,6 +362,13 @@ def test_blocked_windows_missing_is_repaired(
         }
     )
 
+    # This test represents a same-mode
+    # ENFORCED process using the exact same
+    # firewall backend as the reconciler.
+    engine.response_mode = "enforce"
+    engine.firewall_backend = firewall
+
+
     outcomes = service(
         repository,
         engine,
@@ -532,6 +539,13 @@ def test_unblocked_windows_rule_is_repaired(
             }
         }
     )
+
+    # This test represents a same-mode
+    # ENFORCED process using the exact same
+    # firewall backend as the reconciler.
+    engine.response_mode = "enforce"
+    engine.firewall_backend = firewall
+
 
     outcomes = service(
         repository,
@@ -794,3 +808,490 @@ def test_list_reconcilable_failure_propagates():
     ):
 
         reconciliation.sweep()
+
+
+class AffinityFirewall:
+
+    def __init__(
+        self,
+        blocked=None,
+    ):
+
+        self.blocked = set(
+            blocked or []
+        )
+
+        self.block_calls = []
+        self.unblock_calls = []
+        self.query_calls = []
+
+    def is_blocked(
+        self,
+        target,
+    ):
+
+        self.query_calls.append(
+            target
+        )
+
+        return (
+            target
+            in self.blocked
+        )
+
+    def block(
+        self,
+        target,
+    ):
+
+        self.block_calls.append(
+            target
+        )
+
+        existed = (
+            target
+            in self.blocked
+        )
+
+        self.blocked.add(
+            target
+        )
+
+        return {
+            "status": (
+                "EXISTS"
+                if existed
+                else "CREATED"
+            ),
+            "target": target,
+            "rule_name": (
+                "SOC-LAB-BLOCK-"
+                + target.replace(
+                    ".",
+                    "-",
+                )
+            ),
+        }
+
+    def unblock(
+        self,
+        target,
+    ):
+
+        self.unblock_calls.append(
+            target
+        )
+
+        existed = (
+            target
+            in self.blocked
+        )
+
+        self.blocked.discard(
+            target
+        )
+
+        return {
+            "status": (
+                "REMOVED"
+                if existed
+                else "MISSING"
+            ),
+            "target": target,
+            "rule_name": (
+                "SOC-LAB-BLOCK-"
+                + target.replace(
+                    ".",
+                    "-",
+                )
+            ),
+        }
+
+
+def test_historic_windows_block_uses_windows_after_simulate_restart():
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    repository = FakeRepository([
+        {
+            "target": TARGET,
+            "desired_state": "BLOCKED",
+            "backend": "windows_firewall",
+            "execution_mode": "ENFORCED",
+            "status": "ACTIVE",
+        }
+    ])
+
+    firewall = AffinityFirewall()
+
+    engine = ResponseEngine(
+        response_mode="simulate"
+    )
+
+    reconciliation = (
+        ResponseBlockReconciliationService(
+            repository=repository,
+            response_engine=engine,
+            firewall_backend=firewall,
+            now_provider=lambda: NOW,
+        )
+    )
+
+    outcomes = reconciliation.sweep()
+
+    assert (
+        outcomes[0]["status"]
+        == "REPAIRED"
+    )
+
+    assert (
+        outcomes[0]["action"]["backend"]
+        == "windows_firewall"
+    )
+
+    assert (
+        outcomes[0]["action"][
+            "execution_mode"
+        ]
+        == "ENFORCED"
+    )
+
+    assert firewall.block_calls == [
+        TARGET
+    ]
+
+    assert (
+        TARGET
+        not in engine.blocked_ips
+    )
+
+
+def test_historic_memory_block_never_escalates_after_enforce_restart():
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    firewall = AffinityFirewall()
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=firewall,
+    )
+
+    repository = FakeRepository([
+        {
+            "target": TARGET,
+            "desired_state": "BLOCKED",
+            "backend": "memory",
+            "execution_mode": "SIMULATED",
+            "status": "ACTIVE",
+        }
+    ])
+
+    reconciliation = (
+        ResponseBlockReconciliationService(
+            repository=repository,
+            response_engine=engine,
+            firewall_backend=firewall,
+            now_provider=lambda: NOW,
+        )
+    )
+
+    outcomes = reconciliation.sweep()
+
+    assert (
+        outcomes[0]["status"]
+        == "REPAIRED"
+    )
+
+    assert (
+        outcomes[0]["action"]["backend"]
+        == "memory"
+    )
+
+    assert (
+        outcomes[0]["action"][
+            "execution_mode"
+        ]
+        == "SIMULATED"
+    )
+
+    assert firewall.block_calls == []
+
+    assert (
+        TARGET
+        in engine.blocked_ips
+    )
+
+
+def test_historic_windows_release_uses_windows_after_simulate_restart():
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    firewall = AffinityFirewall(
+        blocked={
+            TARGET
+        }
+    )
+
+    engine = ResponseEngine(
+        response_mode="simulate"
+    )
+
+    repository = FakeRepository([
+        {
+            "target": TARGET,
+            "desired_state": "UNBLOCKED",
+            "backend": "windows_firewall",
+            "execution_mode": "ENFORCED",
+            "status": "FAILED",
+        }
+    ])
+
+    reconciliation = (
+        ResponseBlockReconciliationService(
+            repository=repository,
+            response_engine=engine,
+            firewall_backend=firewall,
+            now_provider=lambda: NOW,
+        )
+    )
+
+    outcomes = reconciliation.sweep()
+
+    assert (
+        outcomes[0]["status"]
+        == "REPAIRED"
+    )
+
+    assert (
+        outcomes[0]["action"]["backend"]
+        == "windows_firewall"
+    )
+
+    assert (
+        outcomes[0]["action"][
+            "execution_mode"
+        ]
+        == "ENFORCED"
+    )
+
+    assert firewall.unblock_calls == [
+        TARGET
+    ]
+
+    assert (
+        TARGET
+        not in firewall.blocked
+    )
+
+    assert len(
+        repository.released
+    ) == 1
+
+
+def test_historic_memory_release_never_touches_windows_after_enforce_restart():
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    firewall = AffinityFirewall(
+        blocked={
+            TARGET
+        }
+    )
+
+    engine = ResponseEngine(
+        response_mode="enforce",
+        firewall_backend=firewall,
+    )
+
+    engine.blocked_ips.add(
+        TARGET
+    )
+
+    repository = FakeRepository([
+        {
+            "target": TARGET,
+            "desired_state": "UNBLOCKED",
+            "backend": "memory",
+            "execution_mode": "SIMULATED",
+            "status": "FAILED",
+        }
+    ])
+
+    reconciliation = (
+        ResponseBlockReconciliationService(
+            repository=repository,
+            response_engine=engine,
+            firewall_backend=firewall,
+            now_provider=lambda: NOW,
+        )
+    )
+
+    outcomes = reconciliation.sweep()
+
+    assert (
+        outcomes[0]["status"]
+        == "REPAIRED"
+    )
+
+    assert (
+        outcomes[0]["action"]["backend"]
+        == "memory"
+    )
+
+    assert firewall.unblock_calls == []
+
+    assert (
+        TARGET
+        not in engine.blocked_ips
+    )
+
+    # The real firewall is deliberately
+    # unrelated to a historical memory row.
+    assert (
+        TARGET
+        in firewall.blocked
+    )
+
+
+def test_historic_windows_block_respects_current_safety_policy():
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    from engine.services.response_safety_policy import (
+        ResponseSafetyPolicy,
+    )
+
+    firewall = AffinityFirewall()
+
+    policy = ResponseSafetyPolicy(
+        protected_ips=[
+            TARGET
+        ]
+    )
+
+    engine = ResponseEngine(
+        response_mode="simulate",
+        safety_policy=policy,
+    )
+
+    repository = FakeRepository([
+        {
+            "target": TARGET,
+            "desired_state": "BLOCKED",
+            "backend": "windows_firewall",
+            "execution_mode": "ENFORCED",
+            "status": "ACTIVE",
+        }
+    ])
+
+    reconciliation = (
+        ResponseBlockReconciliationService(
+            repository=repository,
+            response_engine=engine,
+            firewall_backend=firewall,
+            safety_policy=policy,
+            now_provider=lambda: NOW,
+        )
+    )
+
+    outcomes = reconciliation.sweep()
+
+    assert (
+        outcomes[0]["status"]
+        == "FAILED"
+    )
+
+    assert firewall.block_calls == []
+
+    assert (
+        outcomes[0]["action"]["status"]
+        == "PROTECTED"
+    )
+
+    assert (
+        outcomes[0]["action"]["backend"]
+        == "safety_policy"
+    )
+
+    assert len(
+        repository.failed
+    ) == 1
+
+
+def test_historic_windows_unblock_allowed_for_currently_protected_target():
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    from engine.services.response_safety_policy import (
+        ResponseSafetyPolicy,
+    )
+
+    firewall = AffinityFirewall(
+        blocked={
+            TARGET
+        }
+    )
+
+    policy = ResponseSafetyPolicy(
+        protected_ips=[
+            TARGET
+        ]
+    )
+
+    engine = ResponseEngine(
+        response_mode="simulate",
+        safety_policy=policy,
+    )
+
+    repository = FakeRepository([
+        {
+            "target": TARGET,
+            "desired_state": "UNBLOCKED",
+            "backend": "windows_firewall",
+            "execution_mode": "ENFORCED",
+            "status": "FAILED",
+        }
+    ])
+
+    reconciliation = (
+        ResponseBlockReconciliationService(
+            repository=repository,
+            response_engine=engine,
+            firewall_backend=firewall,
+            safety_policy=policy,
+            now_provider=lambda: NOW,
+        )
+    )
+
+    outcomes = reconciliation.sweep()
+
+    assert (
+        outcomes[0]["status"]
+        == "REPAIRED"
+    )
+
+    assert firewall.unblock_calls == [
+        TARGET
+    ]
+
+    assert (
+        TARGET
+        not in firewall.blocked
+    )
+
+    assert len(
+        repository.released
+    ) == 1

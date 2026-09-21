@@ -115,12 +115,15 @@ def build_services(container):
         CaseManager()
     )
 
-    firewall_backend = None
+    firewall_backend = (
+        WindowsFirewallBackend()
+    )
 
-    if RESPONSE_MODE == "enforce":
-        firewall_backend = (
-            WindowsFirewallBackend()
-        )
+    response_engine_firewall_backend = (
+        firewall_backend
+        if RESPONSE_MODE == "enforce"
+        else None
+    )
 
     response_safety_policy = (
         ResponseSafetyPolicy(
@@ -133,7 +136,9 @@ def build_services(container):
     container.response_engine = (
         ResponseEngine(
             response_mode=RESPONSE_MODE,
-            firewall_backend=firewall_backend,
+            firewall_backend=(
+                response_engine_firewall_backend
+            ),
             safety_policy=(
                 response_safety_policy
             ),
@@ -171,6 +176,9 @@ def build_services(container):
                 container.response_engine
             ),
             firewall_backend=firewall_backend,
+            safety_policy=(
+                response_safety_policy
+            ),
         )
     )
 
