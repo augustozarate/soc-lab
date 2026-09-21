@@ -81,6 +81,21 @@ RESPONSE_PROTECTED_IPS = tuple(
 )
 
 
+RESPONSE_BLOCK_TTL_SECONDS = int(
+    os.getenv(
+        "RESPONSE_BLOCK_TTL_SECONDS",
+        "900"
+    )
+)
+
+if RESPONSE_BLOCK_TTL_SECONDS <= 0:
+
+    raise ValueError(
+        "RESPONSE_BLOCK_TTL_SECONDS "
+        "must be greater than 0"
+    )
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True

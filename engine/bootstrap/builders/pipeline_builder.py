@@ -100,6 +100,9 @@ def build_pipelines(container):
     container.response_pipeline = ResponsePipeline(
         response_policy_engine=container.response_policy_engine,
         response_engine=container.response_engine,
+        response_block_lifecycle=(
+            container.response_block_lifecycle
+        ),
         soar=container.soar,
         case_manager=container.case_manager,
         event_bus=container.event_bus

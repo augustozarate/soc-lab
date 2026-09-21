@@ -29,6 +29,10 @@ from engine.services.case_manager import (
 from engine.services.response_engine import (
     ResponseEngine
 )
+
+from engine.services.response_block_lifecycle_service import (
+    ResponseBlockLifecycleService
+)
 from engine.services.windows_firewall_backend import (
     WindowsFirewallBackend
 )
@@ -38,6 +42,7 @@ from engine.services.response_safety_policy import (
 from engine.config import (
     RESPONSE_MODE,
     RESPONSE_PROTECTED_IPS,
+    RESPONSE_BLOCK_TTL_SECONDS,
 )
 
 from engine.services.campaign_tracker import (
@@ -123,6 +128,17 @@ def build_services(container):
             firewall_backend=firewall_backend,
             safety_policy=(
                 response_safety_policy
+            ),
+        )
+    )
+
+    container.response_block_lifecycle = (
+        ResponseBlockLifecycleService(
+            repository=(
+                container.response_block_repository
+            ),
+            ttl_seconds=(
+                RESPONSE_BLOCK_TTL_SECONDS
             ),
         )
     )

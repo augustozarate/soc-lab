@@ -4,6 +4,7 @@ class ResponsePipeline:
         self,
         response_policy_engine,
         response_engine,
+        response_block_lifecycle,
         soar,
         case_manager,
         event_bus
@@ -11,6 +12,7 @@ class ResponsePipeline:
 
         self.response_policy_engine = response_policy_engine
         self.response_engine = response_engine
+        self.response_block_lifecycle = response_block_lifecycle
         self.soar = soar
         self.case_manager = case_manager
         self.event_bus = event_bus
@@ -50,6 +52,11 @@ class ResponsePipeline:
 
             executed_actions.append(
                 result
+            )
+
+            self.response_block_lifecycle.observe(
+                result,
+                incident
             )
 
         # =====================================
