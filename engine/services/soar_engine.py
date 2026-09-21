@@ -33,7 +33,9 @@ class SOAREngine:
                 actions.append({
                     "type": "BLOCK_IP",
                     "target": ip,
-                    "status": "SIMULATED"
+                    "status": "SIMULATED",
+                    "execution_mode": "SIMULATED",
+                    "backend": "simulation"
                 })
 
         return actions
