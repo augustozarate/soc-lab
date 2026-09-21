@@ -1295,3 +1295,517 @@ def test_historic_windows_unblock_allowed_for_currently_protected_target():
     assert len(
         repository.released
     ) == 1
+
+
+class RetryFirewall:
+
+    def __init__(
+        self,
+        blocked=None,
+        fail_block=False,
+        fail_unblock=False,
+    ):
+
+        self.blocked = set(
+            blocked or []
+        )
+
+        self.fail_block = fail_block
+        self.fail_unblock = fail_unblock
+
+        self.query_calls = []
+        self.block_calls = []
+        self.unblock_calls = []
+
+    def is_blocked(
+        self,
+        target,
+    ):
+
+        self.query_calls.append(
+            target
+        )
+
+        return (
+            target
+            in self.blocked
+        )
+
+    def block(
+        self,
+        target,
+    ):
+
+        self.block_calls.append(
+            target
+        )
+
+        if self.fail_block:
+
+            raise RuntimeError(
+                "firewall unavailable"
+            )
+
+        existed = (
+            target
+            in self.blocked
+        )
+
+        self.blocked.add(
+            target
+        )
+
+        return {
+            "status": (
+                "EXISTS"
+                if existed
+                else "CREATED"
+            ),
+            "target": target,
+            "rule_name": (
+                "SOC-LAB-BLOCK-"
+                + target.replace(
+                    ".",
+                    "-",
+                )
+            ),
+        }
+
+    def unblock(
+        self,
+        target,
+    ):
+
+        self.unblock_calls.append(
+            target
+        )
+
+        if self.fail_unblock:
+
+            raise RuntimeError(
+                "firewall unavailable"
+            )
+
+        existed = (
+            target
+            in self.blocked
+        )
+
+        self.blocked.discard(
+            target
+        )
+
+        return {
+            "status": (
+                "REMOVED"
+                if existed
+                else "MISSING"
+            ),
+            "target": target,
+            "rule_name": (
+                "SOC-LAB-BLOCK-"
+                + target.replace(
+                    ".",
+                    "-",
+                )
+            ),
+        }
+
+
+def _retry_repository():
+
+    import tempfile
+
+    from pathlib import Path
+
+    from engine.storage.sqlite.database import (
+        Database,
+    )
+
+    from engine.storage.sqlite.migrations import (
+        MigrationRunner,
+    )
+
+    from engine.storage.repositories.response_block_repository import (
+        ResponseBlockRepository,
+    )
+
+    directory = (
+        tempfile.TemporaryDirectory()
+    )
+
+    db = Database(
+        str(
+            Path(directory.name)
+            / "soc.db"
+        )
+    )
+
+    MigrationRunner(
+        db
+    ).run()
+
+    return (
+        directory,
+        ResponseBlockRepository(db),
+    )
+
+
+def test_failed_row_within_retry_cooldown_is_deferred_without_backend_access():
+
+    from datetime import timedelta
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    directory, repository = (
+        _retry_repository()
+    )
+
+    try:
+
+        target = "192.168.20.250"
+
+        repository.upsert_active(
+            target=target,
+            expires_at=(
+                NOW
+                + timedelta(
+                    minutes=10
+                )
+            ),
+            execution_mode="ENFORCED",
+            backend="windows_firewall",
+        )
+
+        failed_at = (
+            NOW
+            - timedelta(
+                seconds=10
+            )
+        )
+
+        repository.mark_failed(
+            target,
+            "firewall unavailable",
+            failed_at,
+        )
+
+        before = repository.get(
+            target
+        )
+
+        firewall = RetryFirewall()
+
+        engine = ResponseEngine(
+            response_mode="simulate"
+        )
+
+        outcomes = (
+            ResponseBlockReconciliationService(
+                repository=repository,
+                response_engine=engine,
+                firewall_backend=firewall,
+                retry_seconds=30,
+                now_provider=lambda: NOW,
+            )
+            .sweep()
+        )
+
+        after = repository.get(
+            target
+        )
+
+        assert outcomes == [
+            {
+                "target": target,
+                "status": "DEFERRED",
+                "reason": (
+                    "Retry cooldown active"
+                ),
+            }
+        ]
+
+        assert firewall.query_calls == []
+        assert firewall.block_calls == []
+        assert firewall.unblock_calls == []
+
+        assert (
+            after["updated_at"]
+            == before["updated_at"]
+        )
+
+        assert (
+            after["last_error"]
+            == before["last_error"]
+        )
+
+    finally:
+
+        directory.cleanup()
+
+
+def test_failed_row_retries_exactly_at_cooldown_boundary():
+
+    from datetime import timedelta
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    directory, repository = (
+        _retry_repository()
+    )
+
+    try:
+
+        target = "192.168.20.251"
+
+        repository.upsert_active(
+            target=target,
+            expires_at=(
+                NOW
+                + timedelta(
+                    minutes=10
+                )
+            ),
+            execution_mode="ENFORCED",
+            backend="windows_firewall",
+        )
+
+        repository.mark_failed(
+            target,
+            "temporary failure",
+            (
+                NOW
+                - timedelta(
+                    seconds=30
+                )
+            ),
+        )
+
+        firewall = RetryFirewall()
+
+        engine = ResponseEngine(
+            response_mode="simulate"
+        )
+
+        outcomes = (
+            ResponseBlockReconciliationService(
+                repository=repository,
+                response_engine=engine,
+                firewall_backend=firewall,
+                retry_seconds=30,
+                now_provider=lambda: NOW,
+            )
+            .sweep()
+        )
+
+        assert (
+            outcomes[0]["status"]
+            == "REPAIRED"
+        )
+
+        assert firewall.query_calls == [
+            target
+        ]
+
+        assert firewall.block_calls == [
+            target
+        ]
+
+        final = repository.get(
+            target
+        )
+
+        assert (
+            final["status"]
+            == "ACTIVE"
+        )
+
+        assert final["last_error"] is None
+
+    finally:
+
+        directory.cleanup()
+
+
+def test_expired_row_bypasses_retry_cooldown_and_unblocks_immediately():
+
+    from datetime import timedelta
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    directory, repository = (
+        _retry_repository()
+    )
+
+    try:
+
+        target = "192.168.20.252"
+
+        repository.upsert_active(
+            target=target,
+            expires_at=(
+                NOW
+                - timedelta(
+                    seconds=1
+                )
+            ),
+            execution_mode="ENFORCED",
+            backend="windows_firewall",
+        )
+
+        repository.mark_expired(
+            target,
+            (
+                NOW
+                - timedelta(
+                    seconds=1
+                )
+            ),
+        )
+
+        firewall = RetryFirewall(
+            blocked={
+                target
+            }
+        )
+
+        engine = ResponseEngine(
+            response_mode="simulate"
+        )
+
+        outcomes = (
+            ResponseBlockReconciliationService(
+                repository=repository,
+                response_engine=engine,
+                firewall_backend=firewall,
+                retry_seconds=30,
+                now_provider=lambda: NOW,
+            )
+            .sweep()
+        )
+
+        assert (
+            outcomes[0]["status"]
+            == "REPAIRED"
+        )
+
+        assert firewall.query_calls == [
+            target
+        ]
+
+        assert firewall.unblock_calls == [
+            target
+        ]
+
+        final = repository.get(
+            target
+        )
+
+        assert (
+            final["status"]
+            == "RELEASED"
+        )
+
+    finally:
+
+        directory.cleanup()
+
+
+def test_zero_retry_seconds_disables_cooldown():
+
+    from datetime import timedelta
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    directory, repository = (
+        _retry_repository()
+    )
+
+    try:
+
+        target = "192.168.20.253"
+
+        repository.upsert_active(
+            target=target,
+            expires_at=(
+                NOW
+                + timedelta(
+                    minutes=10
+                )
+            ),
+            execution_mode="ENFORCED",
+            backend="windows_firewall",
+        )
+
+        repository.mark_failed(
+            target,
+            "temporary failure",
+            NOW,
+        )
+
+        firewall = RetryFirewall()
+
+        engine = ResponseEngine(
+            response_mode="simulate"
+        )
+
+        outcomes = (
+            ResponseBlockReconciliationService(
+                repository=repository,
+                response_engine=engine,
+                firewall_backend=firewall,
+                retry_seconds=0,
+                now_provider=lambda: NOW,
+            )
+            .sweep()
+        )
+
+        assert (
+            outcomes[0]["status"]
+            == "REPAIRED"
+        )
+
+        assert firewall.query_calls == [
+            target
+        ]
+
+        assert firewall.block_calls == [
+            target
+        ]
+
+    finally:
+
+        directory.cleanup()
+
+
+def test_negative_retry_seconds_rejected():
+
+    from engine.services.response_engine import (
+        ResponseEngine,
+    )
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match="greater than or equal to 0",
+    ):
+
+        ResponseBlockReconciliationService(
+            repository=object(),
+            response_engine=(
+                ResponseEngine(
+                    response_mode="simulate"
+                )
+            ),
+            retry_seconds=-1,
+            now_provider=lambda: NOW,
+        )

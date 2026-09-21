@@ -96,6 +96,24 @@ if RESPONSE_BLOCK_TTL_SECONDS <= 0:
     )
 
 
+RESPONSE_RECONCILIATION_RETRY_SECONDS = int(
+    os.getenv(
+        "RESPONSE_RECONCILIATION_RETRY_SECONDS",
+        "30"
+    )
+)
+
+if (
+    RESPONSE_RECONCILIATION_RETRY_SECONDS
+    < 0
+):
+
+    raise ValueError(
+        "RESPONSE_RECONCILIATION_RETRY_SECONDS "
+        "must be greater than or equal to 0"
+    )
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True

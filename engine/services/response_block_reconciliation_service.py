@@ -1,5 +1,6 @@
 from datetime import (
     datetime,
+    timedelta,
     timezone,
 )
 
@@ -20,6 +21,7 @@ class ResponseBlockReconciliationService:
         response_engine,
         firewall_backend=None,
         safety_policy=None,
+        retry_seconds=30,
         now_provider=None,
     ):
 
@@ -38,6 +40,17 @@ class ResponseBlockReconciliationService:
                 "safety_policy",
                 None,
             )
+        )
+
+        if retry_seconds < 0:
+
+            raise ValueError(
+                "retry_seconds must be greater "
+                "than or equal to 0"
+            )
+
+        self.retry_seconds = (
+            retry_seconds
         )
 
         self.now_provider = (
@@ -102,6 +115,21 @@ class ResponseBlockReconciliationService:
                 continue
 
             try:
+
+                if self._retry_deferred(
+                    row,
+                    now,
+                ):
+
+                    outcomes.append({
+                        "target": target,
+                        "status": "DEFERRED",
+                        "reason": (
+                            "Retry cooldown active"
+                        ),
+                    })
+
+                    continue
 
                 actual_blocked = (
                     self._actual_blocked(
@@ -191,6 +219,79 @@ class ResponseBlockReconciliationService:
             )
 
         return outcomes
+
+    def _retry_deferred(
+        self,
+        row,
+        now,
+    ):
+
+        if (
+            row.get("status")
+            != "FAILED"
+        ):
+
+            return False
+
+        if self.retry_seconds == 0:
+
+            return False
+
+        updated_at = row.get(
+            "updated_at"
+        )
+
+        if updated_at is None:
+
+            return False
+
+        if isinstance(
+            updated_at,
+            datetime,
+        ):
+
+            parsed = updated_at
+
+        elif isinstance(
+            updated_at,
+            str,
+        ):
+
+            try:
+
+                parsed = (
+                    datetime.fromisoformat(
+                        updated_at
+                    )
+                )
+
+            except ValueError:
+
+                return False
+
+        else:
+
+            return False
+
+        if (
+            parsed.tzinfo is None
+            or parsed.utcoffset() is None
+        ):
+
+            return False
+
+        parsed = parsed.astimezone(
+            timezone.utc
+        )
+
+        retry_at = (
+            parsed
+            + timedelta(
+                seconds=self.retry_seconds
+            )
+        )
+
+        return now < retry_at
 
     def _actual_blocked(
         self,

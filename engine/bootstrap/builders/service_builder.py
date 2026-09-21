@@ -51,6 +51,7 @@ from engine.config import (
     RESPONSE_MODE,
     RESPONSE_PROTECTED_IPS,
     RESPONSE_BLOCK_TTL_SECONDS,
+    RESPONSE_RECONCILIATION_RETRY_SECONDS,
 )
 
 from engine.services.campaign_tracker import (
@@ -175,6 +176,9 @@ def build_services(container):
             firewall_backend=firewall_backend,
             safety_policy=(
                 response_safety_policy
+            ),
+            retry_seconds=(
+                RESPONSE_RECONCILIATION_RETRY_SECONDS
             ),
         )
     )
