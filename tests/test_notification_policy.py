@@ -274,3 +274,153 @@ def test_invalid_risk_score_falls_back_to_zero():
         result["risk_score"]
         == 0.0
     )
+
+
+def test_alert_order_does_not_change_dedup_key():
+
+    policy = NotificationPolicy()
+
+    data = {
+        "id": "incident-order-alerts",
+        "severity": "HIGH",
+        "risk_score": 82,
+        "alerts": [
+            {
+                "rule_id": "RULE-A",
+                "ip": "192.168.20.130",
+                "mitre": {
+                    "technique_id": "T1110",
+                },
+            },
+            {
+                "rule_id": "RULE-B",
+                "ip": "192.168.20.130",
+                "mitre": {
+                    "technique_id": "T1021",
+                },
+            },
+        ],
+        "response_actions": [],
+    }
+
+    first = policy.evaluate(
+        data
+    )
+
+    reordered = deepcopy(
+        data
+    )
+
+    reordered["alerts"] = list(
+        reversed(
+            reordered["alerts"]
+        )
+    )
+
+    second = policy.evaluate(
+        reordered
+    )
+
+    assert (
+        first["dedup_key"]
+        == second["dedup_key"]
+    )
+
+
+def test_response_action_order_does_not_change_dedup_key():
+
+    policy = NotificationPolicy()
+
+    data = {
+        "id": "incident-order-actions",
+        "severity": "CRITICAL",
+        "risk_score": 95,
+        "alerts": [],
+        "response_actions": [
+            {
+                "type": "BLOCK_IP",
+                "target": "192.168.20.130",
+                "status": "SUCCESS",
+                "execution_mode": "ENFORCED",
+                "backend": "windows_firewall",
+            },
+            {
+                "type": "NOTIFY_SOC",
+                "target": "SOC_TEAM",
+                "status": "SUCCESS",
+                "execution_mode": "LOCAL",
+                "backend": "console",
+            },
+        ],
+    }
+
+    first = policy.evaluate(
+        data
+    )
+
+    reordered = deepcopy(
+        data
+    )
+
+    reordered[
+        "response_actions"
+    ] = list(
+        reversed(
+            reordered[
+                "response_actions"
+            ]
+        )
+    )
+
+    second = policy.evaluate(
+        reordered
+    )
+
+    assert (
+        first["dedup_key"]
+        == second["dedup_key"]
+    )
+
+
+def test_alert_content_change_still_changes_dedup_key():
+
+    policy = NotificationPolicy()
+
+    data = {
+        "id": "incident-alert-change",
+        "severity": "HIGH",
+        "risk_score": 81,
+        "alerts": [
+            {
+                "rule_id": "RULE-A",
+                "ip": "192.168.20.130",
+                "mitre": {
+                    "technique_id": "T1110",
+                },
+            }
+        ],
+        "response_actions": [],
+    }
+
+    before = policy.evaluate(
+        data
+    )
+
+    changed = deepcopy(
+        data
+    )
+
+    changed["alerts"][0][
+        "mitre"
+    ][
+        "technique_id"
+    ] = "T1021"
+
+    after = policy.evaluate(
+        changed
+    )
+
+    assert (
+        before["dedup_key"]
+        != after["dedup_key"]
+    )

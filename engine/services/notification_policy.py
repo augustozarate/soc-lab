@@ -220,7 +220,23 @@ class NotificationPolicy:
                 ),
             })
 
-        return signatures
+        return sorted(
+            signatures,
+            key=lambda item: (
+                str(
+                    item.get("type")
+                    or ""
+                ),
+                str(
+                    item.get("ip")
+                    or ""
+                ),
+                str(
+                    item.get("technique_id")
+                    or ""
+                ),
+            ),
+        )
 
     def _response_signatures(
         self,
@@ -260,4 +276,28 @@ class NotificationPolicy:
                 ),
             })
 
-        return signatures
+        return sorted(
+            signatures,
+            key=lambda item: (
+                str(
+                    item.get("type")
+                    or ""
+                ),
+                str(
+                    item.get("target")
+                    or ""
+                ),
+                str(
+                    item.get("status")
+                    or ""
+                ),
+                str(
+                    item.get("execution_mode")
+                    or ""
+                ),
+                str(
+                    item.get("backend")
+                    or ""
+                ),
+            ),
+        )
