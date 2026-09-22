@@ -216,7 +216,11 @@ def build_services(container):
                     container
                     .local_notification_adapter
                 )
-            }
+            },
+            delivery_repository=(
+                container
+                .notification_delivery_repository
+            ),
         )
     )
 

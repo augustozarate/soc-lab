@@ -117,3 +117,62 @@ ON response_blocks(status);
 
 CREATE INDEX IF NOT EXISTS idx_response_blocks_expires
 ON response_blocks(expires_at);
+
+
+-- ============================================
+-- NOTIFICATION DELIVERY DEDUPLICATION
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+    dedup_key TEXT NOT NULL,
+    channel TEXT NOT NULL,
+
+    incident_id TEXT,
+    severity TEXT,
+
+    status TEXT NOT NULL
+        CHECK (
+            status IN (
+                'PENDING',
+                'SUCCESS',
+                'FAILED',
+                'SKIPPED'
+            )
+        ),
+
+    backend TEXT,
+
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+
+    last_attempt_at TEXT,
+    delivered_at TEXT,
+    last_error TEXT,
+
+    PRIMARY KEY (
+        dedup_key,
+        channel
+    )
+);
+
+CREATE INDEX IF NOT EXISTS
+idx_notification_deliveries_status_updated
+ON notification_deliveries(
+    status,
+    updated_at
+);
+
+CREATE INDEX IF NOT EXISTS
+idx_notification_deliveries_incident
+ON notification_deliveries(
+    incident_id
+);
+
+CREATE INDEX IF NOT EXISTS
+idx_notification_deliveries_channel_status
+ON notification_deliveries(
+    channel,
+    status
+);

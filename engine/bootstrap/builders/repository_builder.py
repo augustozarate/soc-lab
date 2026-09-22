@@ -23,6 +23,10 @@ from engine.storage.repositories.response_block_repository import (
     ResponseBlockRepository
 )
 
+from engine.storage.repositories.notification_delivery_repository import (
+    NotificationDeliveryRepository
+)
+
 
 def build_repositories(
     container,
@@ -75,4 +79,12 @@ def build_repositories(
         )
     )
 
+    container.notification_delivery_repository = (
+        NotificationDeliveryRepository(
+            container.database
+        )
+    )
+
     container.processed_alert_repository.reset_incomplete()
+
+    container.notification_delivery_repository.reset_incomplete()
