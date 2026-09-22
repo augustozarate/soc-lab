@@ -4,6 +4,7 @@ class NotificationService:
         self,
         adapters=None,
         delivery_repository=None,
+        rate_limit_repository=None,
     ):
 
         self.adapters = dict(
@@ -12,6 +13,10 @@ class NotificationService:
 
         self.delivery_repository = (
             delivery_repository
+        )
+
+        self.rate_limit_repository = (
+            rate_limit_repository
         )
 
     # =========================================
@@ -96,6 +101,43 @@ class NotificationService:
         ):
 
             return claimed
+
+        rate_decision = self._check_rate_limit(
+            channel
+        )
+
+        if (
+            rate_decision is not None
+            and rate_decision.get(
+                "status"
+            )
+            == "RATE_LIMITED"
+        ):
+
+            reason = rate_decision.get(
+                "reason",
+                (
+                    "Notification channel "
+                    "rate limit reached"
+                ),
+            )
+
+            self._mark_rate_limited(
+                dedup_key=dedup_key,
+                channel=channel,
+                reason=reason,
+            )
+
+            return {
+                "channel": channel,
+                "status": "RATE_LIMITED",
+                "reason": reason,
+                "reset_at": (
+                    rate_decision.get(
+                        "reset_at"
+                    )
+                ),
+            }
 
         adapter = self.adapters.get(
             channel
@@ -411,6 +453,65 @@ class NotificationService:
 
             # Notification state failures must
             # never escape into incident flow.
+            pass
+
+    def _check_rate_limit(
+        self,
+        channel,
+    ):
+
+        repository = (
+            self.rate_limit_repository
+        )
+
+        if repository is None:
+            return None
+
+        try:
+
+            return (
+                repository
+                .check_and_consume(
+                    channel
+                )
+            )
+
+        except Exception as error:
+
+            return {
+                "status": "RATE_LIMITED",
+                "reason": (
+                    "Rate limit store failure: "
+                    f"{error}"
+                ),
+            }
+
+    def _mark_rate_limited(
+        self,
+        dedup_key,
+        channel,
+        reason,
+    ):
+
+        repository = (
+            self.delivery_repository
+        )
+
+        if (
+            repository is None
+            or not dedup_key
+        ):
+            return
+
+        try:
+
+            repository.mark_rate_limited(
+                dedup_key=dedup_key,
+                channel=channel,
+                reason=reason,
+            )
+
+        except Exception:
             pass
 
     def _mark_skipped(

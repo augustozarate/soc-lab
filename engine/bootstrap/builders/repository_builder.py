@@ -3,6 +3,10 @@ from pathlib import Path
 from engine.config import (
     NOTIFICATION_RETRY_BASE_SECONDS,
     NOTIFICATION_RETRY_MAX_SECONDS,
+    NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS,
+    NOTIFICATION_RATE_LIMIT_EMAIL,
+    NOTIFICATION_RATE_LIMIT_TELEGRAM,
+    NOTIFICATION_RATE_LIMIT_WEBHOOK,
 )
 
 from engine.storage.sqlite.database import Database
@@ -30,6 +34,10 @@ from engine.storage.repositories.response_block_repository import (
 
 from engine.storage.repositories.notification_delivery_repository import (
     NotificationDeliveryRepository
+)
+
+from engine.storage.repositories.notification_rate_limit_repository import (
+    NotificationRateLimitRepository
 )
 
 
@@ -93,6 +101,26 @@ def build_repositories(
             retry_max_seconds=(
                 NOTIFICATION_RETRY_MAX_SECONDS
             ),
+        )
+    )
+
+    container.notification_rate_limit_repository = (
+        NotificationRateLimitRepository(
+            container.database,
+            window_seconds=(
+                NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS
+            ),
+            limits={
+                "email": (
+                    NOTIFICATION_RATE_LIMIT_EMAIL
+                ),
+                "telegram": (
+                    NOTIFICATION_RATE_LIMIT_TELEGRAM
+                ),
+                "webhook": (
+                    NOTIFICATION_RATE_LIMIT_WEBHOOK
+                ),
+            },
         )
     )
 

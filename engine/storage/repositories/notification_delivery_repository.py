@@ -340,6 +340,7 @@ class NotificationDeliveryRepository:
             if status not in (
                 "FAILED",
                 "SKIPPED",
+                "RATE_LIMITED",
             ):
 
                 return {
@@ -408,7 +409,8 @@ class NotificationDeliveryRepository:
                   AND channel = ?
                   AND status IN (
                       'FAILED',
-                      'SKIPPED'
+                      'SKIPPED',
+                      'RATE_LIMITED'
                   )
                   AND last_attempt_at = ?
                 """,
@@ -628,6 +630,47 @@ class NotificationDeliveryRepository:
                     now,
                     str(
                         error
+                    ),
+                    dedup_key,
+                    channel,
+                ),
+            )
+
+            return (
+                cursor.rowcount
+                == 1
+            )
+
+    def mark_rate_limited(
+        self,
+        dedup_key,
+        channel,
+        reason,
+    ):
+
+        now = _iso(
+            self._now()
+        )
+
+        with self.db.connect() as conn:
+
+            cursor = conn.execute(
+                """
+                UPDATE notification_deliveries
+                SET
+                    status = 'RATE_LIMITED',
+                    backend = NULL,
+                    updated_at = ?,
+                    delivered_at = NULL,
+                    last_error = ?
+                WHERE dedup_key = ?
+                  AND channel = ?
+                  AND status = 'PENDING'
+                """,
+                (
+                    now,
+                    str(
+                        reason
                     ),
                     dedup_key,
                     channel,

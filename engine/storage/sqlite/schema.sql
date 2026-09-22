@@ -136,7 +136,8 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
                 'PENDING',
                 'SUCCESS',
                 'FAILED',
-                'SKIPPED'
+                'SKIPPED',
+                'RATE_LIMITED'
             )
         ),
 
@@ -175,4 +176,18 @@ idx_notification_deliveries_channel_status
 ON notification_deliveries(
     channel,
     status
+);
+
+
+-- ============================================
+-- NOTIFICATION CHANNEL RATE LIMITS
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS notification_rate_limits (
+    channel TEXT PRIMARY KEY,
+
+    window_start TEXT NOT NULL,
+    delivery_count INTEGER NOT NULL DEFAULT 0,
+
+    updated_at TEXT NOT NULL
 );

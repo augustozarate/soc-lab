@@ -221,6 +221,10 @@ def build_services(container):
                 container
                 .notification_delivery_repository
             ),
+            rate_limit_repository=(
+                container
+                .notification_rate_limit_repository
+            ),
         )
     )
 

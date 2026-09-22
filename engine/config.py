@@ -149,6 +149,70 @@ if (
     )
 
 
+
+NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS = int(
+    os.getenv(
+        "NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS",
+        "60"
+    )
+)
+
+if NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS <= 0:
+
+    raise ValueError(
+        "NOTIFICATION_RATE_LIMIT_WINDOW_SECONDS "
+        "must be greater than 0"
+    )
+
+
+NOTIFICATION_RATE_LIMIT_EMAIL = int(
+    os.getenv(
+        "NOTIFICATION_RATE_LIMIT_EMAIL",
+        "20"
+    )
+)
+
+NOTIFICATION_RATE_LIMIT_TELEGRAM = int(
+    os.getenv(
+        "NOTIFICATION_RATE_LIMIT_TELEGRAM",
+        "30"
+    )
+)
+
+NOTIFICATION_RATE_LIMIT_WEBHOOK = int(
+    os.getenv(
+        "NOTIFICATION_RATE_LIMIT_WEBHOOK",
+        "60"
+    )
+)
+
+
+for (
+    _name,
+    _value,
+) in (
+    (
+        "NOTIFICATION_RATE_LIMIT_EMAIL",
+        NOTIFICATION_RATE_LIMIT_EMAIL,
+    ),
+    (
+        "NOTIFICATION_RATE_LIMIT_TELEGRAM",
+        NOTIFICATION_RATE_LIMIT_TELEGRAM,
+    ),
+    (
+        "NOTIFICATION_RATE_LIMIT_WEBHOOK",
+        NOTIFICATION_RATE_LIMIT_WEBHOOK,
+    ),
+):
+
+    if _value < 0:
+
+        raise ValueError(
+            f"{_name} must be greater "
+            "than or equal to 0"
+        )
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True
