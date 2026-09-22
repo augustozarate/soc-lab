@@ -257,6 +257,25 @@ class NotificationService:
                     ),
                 )
 
+            elif status == "RATE_LIMITED":
+
+                self._mark_rate_limited(
+                    dedup_key=dedup_key,
+                    channel=channel,
+                    reason=normalized.get(
+                        "reason",
+                        (
+                            "Notification provider "
+                            "rate limit reached"
+                        ),
+                    ),
+                    retry_after_seconds=(
+                        normalized.get(
+                            "retry_after_seconds"
+                        )
+                    ),
+                )
+
             else:
 
                 self._mark_failed(
@@ -684,6 +703,7 @@ class NotificationService:
         dedup_key,
         channel,
         reason,
+        retry_after_seconds=None,
     ):
 
         repository = (
@@ -698,10 +718,20 @@ class NotificationService:
 
         try:
 
+            kwargs = {
+                "dedup_key": dedup_key,
+                "channel": channel,
+                "reason": reason,
+            }
+
+            if retry_after_seconds is not None:
+
+                kwargs[
+                    "retry_after_seconds"
+                ] = retry_after_seconds
+
             repository.mark_rate_limited(
-                dedup_key=dedup_key,
-                channel=channel,
-                reason=reason,
+                **kwargs
             )
 
         except Exception:

@@ -596,3 +596,383 @@ def test_telegram_invalid_retry_after_falls_back_without_leak():
         "DO-NOT-PERSIST"
         not in serialized
     )
+
+
+# ============================================================
+# NOTIFICATION SERVICE INTEGRATION
+# ============================================================
+
+from engine.services.notification_service import (
+    NotificationService,
+)
+
+
+class ProviderRateLimitedAdapter:
+
+    def __init__(
+        self,
+        retry_after_seconds=60,
+    ):
+
+        self.retry_after_seconds = (
+            retry_after_seconds
+        )
+
+        self.calls = 0
+
+    def send(
+        self,
+        plan,
+        incident,
+    ):
+
+        self.calls += 1
+
+        return {
+            "channel": "telegram",
+            "status": "RATE_LIMITED",
+            "backend": (
+                "telegram_bot_api"
+            ),
+            "http_status": 429,
+            "reason": (
+                "Telegram delivery "
+                "rate limited"
+            ),
+            "retry_after_seconds": (
+                self.retry_after_seconds
+            ),
+        }
+
+
+def provider_plan():
+
+    return {
+        "incident_id": (
+            "provider-service"
+        ),
+        "severity": "CRITICAL",
+        "risk_score": 99.0,
+        "dedup_key": (
+            "notification:"
+            "provider-service:"
+            "state"
+        ),
+        "channels": [
+            "telegram"
+        ],
+    }
+
+
+def provider_incident():
+
+    return {
+        "id": (
+            "provider-service"
+        ),
+        "ip": (
+            "192.168.20.130"
+        ),
+        "alerts": [],
+        "response_actions": [],
+    }
+
+
+def test_service_persists_adapter_provider_retry_boundary(
+    tmp_path,
+):
+
+    clock = Clock(
+        datetime(
+            2026,
+            9,
+            22,
+            15,
+            0,
+            tzinfo=timezone.utc,
+        )
+    )
+
+    repository = (
+        NotificationDeliveryRepository(
+            make_db(
+                tmp_path,
+                "service-provider.db",
+            ),
+            retry_base_seconds=30,
+            retry_max_seconds=900,
+            now_provider=clock,
+        )
+    )
+
+    adapter = (
+        ProviderRateLimitedAdapter(
+            retry_after_seconds=60
+        )
+    )
+
+    service = NotificationService(
+        adapters={
+            "telegram": adapter,
+        },
+        delivery_repository=(
+            repository
+        ),
+    )
+
+    plan = provider_plan()
+
+    result = service.dispatch(
+        plan,
+        provider_incident(),
+    )
+
+    assert result == [
+        {
+            "channel": "telegram",
+            "status": "RATE_LIMITED",
+            "backend": (
+                "telegram_bot_api"
+            ),
+            "http_status": 429,
+            "reason": (
+                "Telegram delivery "
+                "rate limited"
+            ),
+            "retry_after_seconds": 60,
+        }
+    ]
+
+    assert adapter.calls == 1
+
+    row = repository.get(
+        plan[
+            "dedup_key"
+        ],
+        "telegram",
+    )
+
+    assert (
+        row["status"]
+        == "RATE_LIMITED"
+    )
+
+    assert row[
+        "provider_retry_at"
+    ] == datetime(
+        2026,
+        9,
+        22,
+        15,
+        1,
+        tzinfo=timezone.utc,
+    ).isoformat(
+        timespec="microseconds"
+    )
+
+    assert (
+        row["last_error"]
+        == (
+            "Telegram delivery "
+            "rate limited"
+        )
+    )
+
+    serialized = str(
+        row
+    )
+
+    assert (
+        "telegram_bot_api"
+        not in serialized
+    )
+
+    assert (
+        "429"
+        not in serialized
+    )
+
+
+def test_service_defers_until_provider_boundary_then_retries(
+    tmp_path,
+):
+
+    clock = Clock(
+        datetime(
+            2026,
+            9,
+            22,
+            16,
+            0,
+            tzinfo=timezone.utc,
+        )
+    )
+
+    repository = (
+        NotificationDeliveryRepository(
+            make_db(
+                tmp_path,
+                "service-boundary.db",
+            ),
+            retry_base_seconds=30,
+            retry_max_seconds=900,
+            now_provider=clock,
+        )
+    )
+
+    adapter = (
+        ProviderRateLimitedAdapter(
+            retry_after_seconds=60
+        )
+    )
+
+    service = NotificationService(
+        adapters={
+            "telegram": adapter,
+        },
+        delivery_repository=(
+            repository
+        ),
+    )
+
+    plan = provider_plan()
+    incident = provider_incident()
+
+    # ----------------------------------------
+    # t = 0
+    #
+    # Provider is contacted and returns 429.
+    # ----------------------------------------
+
+    first = service.dispatch(
+        plan,
+        incident,
+    )
+
+    assert (
+        first[0]["status"]
+        == "RATE_LIMITED"
+    )
+
+    assert adapter.calls == 1
+
+    row = repository.get(
+        plan[
+            "dedup_key"
+        ],
+        "telegram",
+    )
+
+    assert (
+        row[
+            "attempt_count"
+        ]
+        == 1
+    )
+
+    # ----------------------------------------
+    # t = 30
+    #
+    # Legacy local backoff would already permit
+    # a retry here, but provider_retry_at=60
+    # must take precedence.
+    # ----------------------------------------
+
+    clock.advance(
+        30
+    )
+
+    second = service.dispatch(
+        plan,
+        incident,
+    )
+
+    assert second == [
+        {
+            "channel": "telegram",
+            "status": "DEFERRED",
+            "reason": (
+                "Provider retry "
+                "boundary active"
+            ),
+            "retry_at": datetime(
+                2026,
+                9,
+                22,
+                16,
+                1,
+                tzinfo=timezone.utc,
+            ).isoformat(
+                timespec="microseconds"
+            ),
+            "attempt_count": 1,
+        }
+    ]
+
+    # Adapter must NOT have been called.
+    assert adapter.calls == 1
+
+    row = repository.get(
+        plan[
+            "dedup_key"
+        ],
+        "telegram",
+    )
+
+    assert (
+        row[
+            "attempt_count"
+        ]
+        == 1
+    )
+
+    # ----------------------------------------
+    # t = 60 exact boundary
+    #
+    # Retry is allowed exactly here.
+    # ----------------------------------------
+
+    clock.advance(
+        30
+    )
+
+    third = service.dispatch(
+        plan,
+        incident,
+    )
+
+    assert (
+        third[0]["status"]
+        == "RATE_LIMITED"
+    )
+
+    assert adapter.calls == 2
+
+    row = repository.get(
+        plan[
+            "dedup_key"
+        ],
+        "telegram",
+    )
+
+    assert (
+        row[
+            "attempt_count"
+        ]
+        == 2
+    )
+
+    # The second provider 429 installs a NEW
+    # provider boundary relative to t=60.
+    assert row[
+        "provider_retry_at"
+    ] == datetime(
+        2026,
+        9,
+        22,
+        16,
+        2,
+        tzinfo=timezone.utc,
+    ).isoformat(
+        timespec="microseconds"
+    )
