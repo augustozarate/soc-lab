@@ -213,6 +213,49 @@ for (
         )
 
 
+NOTIFICATION_WEBHOOK_ENABLED = _env_bool(
+    "NOTIFICATION_WEBHOOK_ENABLED",
+    False,
+)
+
+NOTIFICATION_WEBHOOK_URL = (
+    os.getenv(
+        "NOTIFICATION_WEBHOOK_URL",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS = float(
+    os.getenv(
+        "NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS",
+        "5",
+    )
+)
+
+if NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS <= 0:
+
+    raise ValueError(
+        "NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS "
+        "must be greater than 0"
+    )
+
+
+NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES = int(
+    os.getenv(
+        "NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES",
+        "16384",
+    )
+)
+
+if NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES <= 0:
+
+    raise ValueError(
+        "NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES "
+        "must be greater than 0"
+    )
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True

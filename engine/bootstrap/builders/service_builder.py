@@ -80,6 +80,17 @@ from engine.services.local_notification_adapter import (
     LocalNotificationAdapter
 )
 
+from engine.services.webhook_notification_adapter import (
+    WebhookNotificationAdapter
+)
+
+from engine.config import (
+    NOTIFICATION_WEBHOOK_ENABLED,
+    NOTIFICATION_WEBHOOK_URL,
+    NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS,
+    NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES,
+)
+
 from engine.behavior_engine import (
     BehaviorEngine
 )
@@ -209,14 +220,49 @@ def build_services(container):
         LocalNotificationAdapter()
     )
 
+    notification_adapters = {
+        "local": (
+            container
+            .local_notification_adapter
+        ),
+    }
+
+    container.webhook_notification_adapter = None
+
+    if NOTIFICATION_WEBHOOK_ENABLED:
+
+        if not NOTIFICATION_WEBHOOK_URL:
+
+            raise ValueError(
+                "NOTIFICATION_WEBHOOK_URL "
+                "is required when webhook "
+                "notifications are enabled"
+            )
+
+        container.webhook_notification_adapter = (
+            WebhookNotificationAdapter(
+                url=(
+                    NOTIFICATION_WEBHOOK_URL
+                ),
+                timeout_seconds=(
+                    NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS
+                ),
+                max_payload_bytes=(
+                    NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES
+                ),
+            )
+        )
+
+        notification_adapters[
+            "webhook"
+        ] = (
+            container
+            .webhook_notification_adapter
+        )
+
     container.notification_service = (
         NotificationService(
-            adapters={
-                "local": (
-                    container
-                    .local_notification_adapter
-                )
-            },
+            adapters=notification_adapters,
             delivery_repository=(
                 container
                 .notification_delivery_repository
