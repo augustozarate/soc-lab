@@ -84,6 +84,10 @@ from engine.services.webhook_notification_adapter import (
     WebhookNotificationAdapter
 )
 
+from engine.services.email_notification_adapter import (
+    EmailNotificationAdapter
+)
+
 from engine.config import (
     NOTIFICATION_WEBHOOK_ENABLED,
     NOTIFICATION_WEBHOOK_URL,
@@ -91,6 +95,16 @@ from engine.config import (
     NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES,
     NOTIFICATION_WEBHOOK_AUTH_TOKEN,
     NOTIFICATION_WEBHOOK_CA_BUNDLE,
+    NOTIFICATION_EMAIL_ENABLED,
+    NOTIFICATION_EMAIL_HOST,
+    NOTIFICATION_EMAIL_PORT,
+    NOTIFICATION_EMAIL_SECURITY,
+    NOTIFICATION_EMAIL_TIMEOUT_SECONDS,
+    NOTIFICATION_EMAIL_USERNAME,
+    NOTIFICATION_EMAIL_PASSWORD,
+    NOTIFICATION_EMAIL_FROM,
+    NOTIFICATION_EMAIL_TO,
+    NOTIFICATION_EMAIL_CA_BUNDLE,
 )
 
 from engine.behavior_engine import (
@@ -228,6 +242,87 @@ def build_services(container):
             .local_notification_adapter
         ),
     }
+
+    container.email_notification_adapter = None
+
+    if NOTIFICATION_EMAIL_ENABLED:
+
+        required_email_config = {
+            "NOTIFICATION_EMAIL_HOST": (
+                NOTIFICATION_EMAIL_HOST
+            ),
+            "NOTIFICATION_EMAIL_USERNAME": (
+                NOTIFICATION_EMAIL_USERNAME
+            ),
+            "NOTIFICATION_EMAIL_PASSWORD": (
+                NOTIFICATION_EMAIL_PASSWORD
+            ),
+            "NOTIFICATION_EMAIL_FROM": (
+                NOTIFICATION_EMAIL_FROM
+            ),
+            "NOTIFICATION_EMAIL_TO": (
+                NOTIFICATION_EMAIL_TO
+            ),
+        }
+
+        missing_email_config = [
+            name
+            for (
+                name,
+                value,
+            ) in required_email_config.items()
+            if not value
+        ]
+
+        if missing_email_config:
+
+            raise ValueError(
+                "Missing required email "
+                "notification configuration: "
+                + ", ".join(
+                    missing_email_config
+                )
+            )
+
+        container.email_notification_adapter = (
+            EmailNotificationAdapter(
+                host=(
+                    NOTIFICATION_EMAIL_HOST
+                ),
+                port=(
+                    NOTIFICATION_EMAIL_PORT
+                ),
+                security=(
+                    NOTIFICATION_EMAIL_SECURITY
+                ),
+                timeout_seconds=(
+                    NOTIFICATION_EMAIL_TIMEOUT_SECONDS
+                ),
+                username=(
+                    NOTIFICATION_EMAIL_USERNAME
+                ),
+                password=(
+                    NOTIFICATION_EMAIL_PASSWORD
+                ),
+                sender=(
+                    NOTIFICATION_EMAIL_FROM
+                ),
+                recipient=(
+                    NOTIFICATION_EMAIL_TO
+                ),
+                ca_bundle=(
+                    NOTIFICATION_EMAIL_CA_BUNDLE
+                    or None
+                ),
+            )
+        )
+
+        notification_adapters[
+            "email"
+        ] = (
+            container
+            .email_notification_adapter
+        )
 
     container.webhook_notification_adapter = None
 

@@ -273,6 +273,103 @@ NOTIFICATION_WEBHOOK_CA_BUNDLE = (
 )
 
 
+NOTIFICATION_EMAIL_ENABLED = _env_bool(
+    "NOTIFICATION_EMAIL_ENABLED",
+    False,
+)
+
+NOTIFICATION_EMAIL_HOST = (
+    os.getenv(
+        "NOTIFICATION_EMAIL_HOST",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_EMAIL_PORT = int(
+    os.getenv(
+        "NOTIFICATION_EMAIL_PORT",
+        "465",
+    )
+)
+
+if not (
+    1
+    <= NOTIFICATION_EMAIL_PORT
+    <= 65535
+):
+
+    raise ValueError(
+        "NOTIFICATION_EMAIL_PORT "
+        "must be between 1 and 65535"
+    )
+
+
+NOTIFICATION_EMAIL_SECURITY = _env_choice(
+    "NOTIFICATION_EMAIL_SECURITY",
+    "ssl",
+    {
+        "ssl",
+        "starttls",
+    },
+)
+
+
+NOTIFICATION_EMAIL_TIMEOUT_SECONDS = float(
+    os.getenv(
+        "NOTIFICATION_EMAIL_TIMEOUT_SECONDS",
+        "5",
+    )
+)
+
+if NOTIFICATION_EMAIL_TIMEOUT_SECONDS <= 0:
+
+    raise ValueError(
+        "NOTIFICATION_EMAIL_TIMEOUT_SECONDS "
+        "must be greater than 0"
+    )
+
+
+NOTIFICATION_EMAIL_USERNAME = (
+    os.getenv(
+        "NOTIFICATION_EMAIL_USERNAME",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_EMAIL_PASSWORD = (
+    os.getenv(
+        "NOTIFICATION_EMAIL_PASSWORD",
+        "",
+    )
+)
+
+NOTIFICATION_EMAIL_FROM = (
+    os.getenv(
+        "NOTIFICATION_EMAIL_FROM",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_EMAIL_TO = (
+    os.getenv(
+        "NOTIFICATION_EMAIL_TO",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_EMAIL_CA_BUNDLE = (
+    os.getenv(
+        "NOTIFICATION_EMAIL_CA_BUNDLE",
+        "",
+    )
+    .strip()
+)
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True
