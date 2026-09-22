@@ -261,7 +261,26 @@ class NotificationService:
 
         try:
 
-            return repository.claim(
+            claim_delivery = getattr(
+                repository,
+                "claim_delivery",
+                None,
+            )
+
+            if claim_delivery is None:
+
+                return repository.claim(
+                    dedup_key=dedup_key,
+                    channel=channel,
+                    incident_id=plan.get(
+                        "incident_id"
+                    ),
+                    severity=plan.get(
+                        "severity"
+                    ),
+                )
+
+            decision = claim_delivery(
                 dedup_key=dedup_key,
                 channel=channel,
                 incident_id=plan.get(
@@ -271,6 +290,47 @@ class NotificationService:
                     "severity"
                 ),
             )
+
+            status = decision.get(
+                "status"
+            )
+
+            if status == "CLAIMED":
+                return True
+
+            if status == "DEFERRED":
+
+                return {
+                    "channel": channel,
+                    "status": "DEFERRED",
+                    "reason": decision.get(
+                        "reason",
+                        (
+                            "Notification retry "
+                            "backoff active"
+                        ),
+                    ),
+                    "retry_at": decision.get(
+                        "retry_at"
+                    ),
+                    "attempt_count": (
+                        decision.get(
+                            "attempt_count"
+                        )
+                    ),
+                }
+
+            return {
+                "channel": channel,
+                "status": "SUPPRESSED",
+                "reason": decision.get(
+                    "reason",
+                    (
+                        "Notification delivery "
+                        "already claimed or delivered"
+                    ),
+                ),
+            }
 
         except Exception as error:
 

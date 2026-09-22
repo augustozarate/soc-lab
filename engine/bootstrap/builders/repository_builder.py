@@ -1,5 +1,10 @@
 from pathlib import Path
 
+from engine.config import (
+    NOTIFICATION_RETRY_BASE_SECONDS,
+    NOTIFICATION_RETRY_MAX_SECONDS,
+)
+
 from engine.storage.sqlite.database import Database
 from engine.storage.sqlite.migrations import MigrationRunner
 
@@ -81,7 +86,13 @@ def build_repositories(
 
     container.notification_delivery_repository = (
         NotificationDeliveryRepository(
-            container.database
+            container.database,
+            retry_base_seconds=(
+                NOTIFICATION_RETRY_BASE_SECONDS
+            ),
+            retry_max_seconds=(
+                NOTIFICATION_RETRY_MAX_SECONDS
+            ),
         )
     )
 

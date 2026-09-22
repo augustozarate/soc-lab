@@ -114,6 +114,41 @@ if (
     )
 
 
+
+NOTIFICATION_RETRY_BASE_SECONDS = int(
+    os.getenv(
+        "NOTIFICATION_RETRY_BASE_SECONDS",
+        "30"
+    )
+)
+
+if NOTIFICATION_RETRY_BASE_SECONDS < 0:
+
+    raise ValueError(
+        "NOTIFICATION_RETRY_BASE_SECONDS "
+        "must be greater than or equal to 0"
+    )
+
+
+NOTIFICATION_RETRY_MAX_SECONDS = int(
+    os.getenv(
+        "NOTIFICATION_RETRY_MAX_SECONDS",
+        "900"
+    )
+)
+
+if (
+    NOTIFICATION_RETRY_MAX_SECONDS
+    < NOTIFICATION_RETRY_BASE_SECONDS
+):
+
+    raise ValueError(
+        "NOTIFICATION_RETRY_MAX_SECONDS "
+        "must be greater than or equal to "
+        "NOTIFICATION_RETRY_BASE_SECONDS"
+    )
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True

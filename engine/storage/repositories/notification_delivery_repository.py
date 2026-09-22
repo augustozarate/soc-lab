@@ -1,13 +1,75 @@
 from datetime import (
     datetime,
+    timedelta,
     timezone,
 )
 
 
-def _utc_now_iso():
+def _utc_now():
+
+    return datetime.now(
+        timezone.utc
+    )
+
+
+def _normalize_datetime(
+    value,
+    field_name,
+):
+
+    if isinstance(
+        value,
+        datetime,
+    ):
+
+        parsed = value
+
+    elif isinstance(
+        value,
+        str,
+    ):
+
+        try:
+
+            parsed = datetime.fromisoformat(
+                value
+            )
+
+        except ValueError as exc:
+
+            raise ValueError(
+                f"{field_name} must be "
+                "a valid ISO-8601 datetime"
+            ) from exc
+
+    else:
+
+        raise TypeError(
+            f"{field_name} must be "
+            "a datetime or ISO-8601 string"
+        )
+
+    if (
+        parsed.tzinfo is None
+        or parsed.utcoffset() is None
+    ):
+
+        raise ValueError(
+            f"{field_name} must be "
+            "timezone-aware"
+        )
+
+    return parsed.astimezone(
+        timezone.utc
+    )
+
+
+def _iso(
+    value,
+):
 
     return (
-        datetime.now(
+        value.astimezone(
             timezone.utc
         )
         .isoformat(
@@ -21,12 +83,91 @@ class NotificationDeliveryRepository:
     def __init__(
         self,
         db,
+        retry_base_seconds=30,
+        retry_max_seconds=900,
+        now_provider=None,
     ):
+
+        if retry_base_seconds < 0:
+
+            raise ValueError(
+                "retry_base_seconds must be "
+                "greater than or equal to 0"
+            )
+
+        if (
+            retry_max_seconds
+            < retry_base_seconds
+        ):
+
+            raise ValueError(
+                "retry_max_seconds must be "
+                "greater than or equal to "
+                "retry_base_seconds"
+            )
 
         self.db = db
 
+        self.retry_base_seconds = (
+            retry_base_seconds
+        )
+
+        self.retry_max_seconds = (
+            retry_max_seconds
+        )
+
+        self.now_provider = (
+            now_provider
+            or _utc_now
+        )
+
     # =========================================
-    # CLAIM
+    # TIME
+    # =========================================
+
+    def _now(
+        self,
+    ):
+
+        return _normalize_datetime(
+            self.now_provider(),
+            "now_provider",
+        )
+
+    def _retry_delay(
+        self,
+        attempt_count,
+    ):
+
+        if self.retry_base_seconds == 0:
+            return 0
+
+        attempt_count = max(
+            int(
+                attempt_count
+                or 1
+            ),
+            1,
+        )
+
+        delay = (
+            self.retry_base_seconds
+            * (
+                2
+                ** (
+                    attempt_count
+                    - 1
+                )
+            )
+        )
+
+        return min(
+            delay,
+            self.retry_max_seconds,
+        )
+
+    # =========================================
+    # LEGACY / IMMEDIATE CLAIM
     # =========================================
 
     def claim(
@@ -37,17 +178,294 @@ class NotificationDeliveryRepository:
         severity=None,
     ):
 
+        """
+        Low-level immediate claim kept for
+        repository compatibility/tests.
+
+        Production NotificationService uses
+        claim_delivery(), which applies durable
+        retry eligibility.
+        """
+
+        return self._claim_immediate(
+            dedup_key=dedup_key,
+            channel=channel,
+            incident_id=incident_id,
+            severity=severity,
+        )
+
+    # =========================================
+    # RETRY-AWARE CLAIM
+    # =========================================
+
+    def claim_delivery(
+        self,
+        dedup_key,
+        channel,
+        incident_id=None,
+        severity=None,
+    ):
+
         if not dedup_key:
+
             raise ValueError(
                 "dedup_key is required"
             )
 
         if not channel:
+
             raise ValueError(
                 "channel is required"
             )
 
-        now = _utc_now_iso()
+        now = self._now()
+        now_iso = _iso(
+            now
+        )
+
+        with self.db.connect() as conn:
+
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO
+                notification_deliveries (
+                    dedup_key,
+                    channel,
+                    incident_id,
+                    severity,
+                    status,
+                    backend,
+                    attempt_count,
+                    created_at,
+                    updated_at,
+                    last_attempt_at,
+                    delivered_at,
+                    last_error
+                )
+                VALUES (
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    'PENDING',
+                    NULL,
+                    1,
+                    ?,
+                    ?,
+                    ?,
+                    NULL,
+                    NULL
+                )
+                """,
+                (
+                    dedup_key,
+                    channel,
+                    incident_id,
+                    severity,
+                    now_iso,
+                    now_iso,
+                    now_iso,
+                ),
+            )
+
+            if cursor.rowcount == 1:
+
+                return {
+                    "status": "CLAIMED",
+                    "attempt_count": 1,
+                }
+
+            row = conn.execute(
+                """
+                SELECT
+                    status,
+                    attempt_count,
+                    last_attempt_at
+                FROM notification_deliveries
+                WHERE dedup_key = ?
+                  AND channel = ?
+                """,
+                (
+                    dedup_key,
+                    channel,
+                ),
+            ).fetchone()
+
+            if row is None:
+
+                return {
+                    "status": "SUPPRESSED",
+                    "reason": (
+                        "Delivery state unavailable"
+                    ),
+                }
+
+            status = row[
+                "status"
+            ]
+
+            attempt_count = int(
+                row[
+                    "attempt_count"
+                ]
+                or 0
+            )
+
+            if status == "SUCCESS":
+
+                return {
+                    "status": "SUPPRESSED",
+                    "reason": (
+                        "Notification already "
+                        "delivered"
+                    ),
+                    "attempt_count": (
+                        attempt_count
+                    ),
+                }
+
+            if status == "PENDING":
+
+                return {
+                    "status": "SUPPRESSED",
+                    "reason": (
+                        "Notification delivery "
+                        "already in progress"
+                    ),
+                    "attempt_count": (
+                        attempt_count
+                    ),
+                }
+
+            if status not in (
+                "FAILED",
+                "SKIPPED",
+            ):
+
+                return {
+                    "status": "SUPPRESSED",
+                    "reason": (
+                        "Notification delivery "
+                        f"state={status}"
+                    ),
+                    "attempt_count": (
+                        attempt_count
+                    ),
+                }
+
+            last_attempt = (
+                _normalize_datetime(
+                    row[
+                        "last_attempt_at"
+                    ],
+                    "last_attempt_at",
+                )
+            )
+
+            delay = self._retry_delay(
+                attempt_count
+            )
+
+            retry_at = (
+                last_attempt
+                + timedelta(
+                    seconds=delay
+                )
+            )
+
+            if now < retry_at:
+
+                return {
+                    "status": "DEFERRED",
+                    "reason": (
+                        "Notification retry "
+                        "backoff active"
+                    ),
+                    "attempt_count": (
+                        attempt_count
+                    ),
+                    "retry_at": _iso(
+                        retry_at
+                    ),
+                }
+
+            cursor = conn.execute(
+                """
+                UPDATE notification_deliveries
+                SET
+                    incident_id = ?,
+                    severity = ?,
+                    status = 'PENDING',
+                    backend = NULL,
+                    attempt_count = (
+                        attempt_count + 1
+                    ),
+                    updated_at = ?,
+                    last_attempt_at = ?,
+                    delivered_at = NULL,
+                    last_error = NULL
+                WHERE dedup_key = ?
+                  AND channel = ?
+                  AND status IN (
+                      'FAILED',
+                      'SKIPPED'
+                  )
+                  AND last_attempt_at = ?
+                """,
+                (
+                    incident_id,
+                    severity,
+                    now_iso,
+                    now_iso,
+                    dedup_key,
+                    channel,
+                    row[
+                        "last_attempt_at"
+                    ],
+                ),
+            )
+
+            if cursor.rowcount != 1:
+
+                return {
+                    "status": "SUPPRESSED",
+                    "reason": (
+                        "Notification delivery "
+                        "was claimed concurrently"
+                    ),
+                }
+
+            return {
+                "status": "CLAIMED",
+                "attempt_count": (
+                    attempt_count
+                    + 1
+                ),
+            }
+
+    def _claim_immediate(
+        self,
+        dedup_key,
+        channel,
+        incident_id=None,
+        severity=None,
+    ):
+
+        if not dedup_key:
+
+            raise ValueError(
+                "dedup_key is required"
+            )
+
+        if not channel:
+
+            raise ValueError(
+                "channel is required"
+            )
+
+        now = _iso(
+            self._now()
+        )
 
         with self.db.connect() as conn:
 
@@ -145,7 +563,9 @@ class NotificationDeliveryRepository:
         backend=None,
     ):
 
-        now = _utc_now_iso()
+        now = _iso(
+            self._now()
+        )
 
         with self.db.connect() as conn:
 
@@ -184,7 +604,9 @@ class NotificationDeliveryRepository:
         backend=None,
     ):
 
-        now = _utc_now_iso()
+        now = _iso(
+            self._now()
+        )
 
         with self.db.connect() as conn:
 
@@ -204,7 +626,9 @@ class NotificationDeliveryRepository:
                 (
                     backend,
                     now,
-                    str(error),
+                    str(
+                        error
+                    ),
                     dedup_key,
                     channel,
                 ),
@@ -222,7 +646,9 @@ class NotificationDeliveryRepository:
         reason,
     ):
 
-        now = _utc_now_iso()
+        now = _iso(
+            self._now()
+        )
 
         with self.db.connect() as conn:
 
@@ -241,7 +667,9 @@ class NotificationDeliveryRepository:
                 """,
                 (
                     now,
-                    str(reason),
+                    str(
+                        reason
+                    ),
                     dedup_key,
                     channel,
                 ),
@@ -260,7 +688,9 @@ class NotificationDeliveryRepository:
         self,
     ):
 
-        now = _utc_now_iso()
+        now = _iso(
+            self._now()
+        )
 
         with self.db.connect() as conn:
 
