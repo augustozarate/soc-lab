@@ -114,7 +114,8 @@ def build_pipelines(container):
 
     container.persistence_pipeline = PersistencePipeline(
         incident_repository=container.incident_repository,
-        campaign_repository=container.campaign_repository
+        campaign_repository=container.campaign_repository,
+        event_bus=container.event_bus
     )
 
     # =====================================

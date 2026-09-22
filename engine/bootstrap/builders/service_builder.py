@@ -70,6 +70,16 @@ from engine.services.response_policy_engine import (
     ResponsePolicyEngine
 )
 
+from engine.services.notification_policy import (
+    NotificationPolicy
+)
+from engine.services.notification_service import (
+    NotificationService
+)
+from engine.services.local_notification_adapter import (
+    LocalNotificationAdapter
+)
+
 from engine.behavior_engine import (
     BehaviorEngine
 )
@@ -185,6 +195,29 @@ def build_services(container):
 
     container.response_policy_engine = (
         ResponsePolicyEngine()
+    )
+
+    # =====================================
+    # NOTIFICATIONS
+    # =====================================
+
+    container.notification_policy = (
+        NotificationPolicy()
+    )
+
+    container.local_notification_adapter = (
+        LocalNotificationAdapter()
+    )
+
+    container.notification_service = (
+        NotificationService(
+            adapters={
+                "local": (
+                    container
+                    .local_notification_adapter
+                )
+            }
+        )
     )
 
     container.campaign_tracker = (

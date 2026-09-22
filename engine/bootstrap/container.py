@@ -7,6 +7,7 @@ from engine.bootstrap.builders.infrastructure_builder import build_infrastructur
 from engine.bootstrap.builders.service_builder import build_services
 from engine.bootstrap.builders.correlation_builder import build_correlation
 from engine.bootstrap.builders.pipeline_builder import build_pipelines
+from engine.bootstrap.builders.subscriber_builder import build_subscribers
 from engine.bootstrap.builders.runtime_builder import build_runtime
 from engine.services.monitor_snapshot import (
     MonitorSnapshotWriter
@@ -65,6 +66,8 @@ class Container:
         build_correlation(self)
 
         build_pipelines(self)
+
+        build_subscribers(self)
 
         build_runtime(
             self,
