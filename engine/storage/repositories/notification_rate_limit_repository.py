@@ -123,6 +123,10 @@ class NotificationRateLimitRepository:
                     "equal to 0"
                 )
 
+    # =========================================
+    # TIME
+    # =========================================
+
     def _now(
         self,
     ):
@@ -131,6 +135,10 @@ class NotificationRateLimitRepository:
             self.now_provider(),
             "now_provider",
         )
+
+    # =========================================
+    # ATOMIC FIXED WINDOW
+    # =========================================
 
     def check_and_consume(
         self,
@@ -141,12 +149,16 @@ class NotificationRateLimitRepository:
             channel
         )
 
+        # Channels absent from configuration
+        # are intentionally unlimited and
+        # require no clock or durable state.
         if limit is None:
 
             return {
                 "status": "UNLIMITED",
             }
 
+        # Explicit zero disables delivery.
         if limit == 0:
 
             return {
@@ -158,11 +170,22 @@ class NotificationRateLimitRepository:
             }
 
         now = self._now()
+
         now_iso = _iso(
             now
         )
 
         with self.db.connect() as conn:
+
+            # Serialize writers for the short
+            # read/decision/update window.
+            #
+            # This prevents multiple workers
+            # from consuming the same remaining
+            # fixed-window slot.
+            conn.execute(
+                "BEGIN IMMEDIATE"
+            )
 
             row = conn.execute(
                 """
@@ -236,6 +259,7 @@ class NotificationRateLimitRepository:
                 )
             )
 
+            # Exact boundary starts a new window.
             if now >= reset_at:
 
                 conn.execute(
@@ -291,7 +315,7 @@ class NotificationRateLimitRepository:
                     ),
                 }
 
-            cursor = conn.execute(
+            conn.execute(
                 """
                 UPDATE notification_rate_limits
                 SET
@@ -300,32 +324,12 @@ class NotificationRateLimitRepository:
                     ),
                     updated_at = ?
                 WHERE channel = ?
-                  AND window_start = ?
-                  AND delivery_count = ?
                 """,
                 (
                     now_iso,
                     channel,
-                    row[
-                        "window_start"
-                    ],
-                    count,
                 ),
             )
-
-            if cursor.rowcount != 1:
-
-                return {
-                    "status": "RATE_LIMITED",
-                    "reason": (
-                        "Rate limit state "
-                        "changed concurrently"
-                    ),
-                    "remaining": 0,
-                    "reset_at": _iso(
-                        reset_at
-                    ),
-                }
 
             return {
                 "status": "ALLOWED",
@@ -338,6 +342,10 @@ class NotificationRateLimitRepository:
                     reset_at
                 ),
             }
+
+    # =========================================
+    # READ
+    # =========================================
 
     def get(
         self,

@@ -1,3 +1,8 @@
+import time
+
+from engine.telemetry.metrics import metrics
+
+
 class NotificationService:
 
     def __init__(
@@ -5,6 +10,7 @@ class NotificationService:
         adapters=None,
         delivery_repository=None,
         rate_limit_repository=None,
+        metrics_collector=None,
     ):
 
         self.adapters = dict(
@@ -17,6 +23,12 @@ class NotificationService:
 
         self.rate_limit_repository = (
             rate_limit_repository
+        )
+
+        self.metrics = (
+            metrics
+            if metrics_collector is None
+            else metrics_collector
         )
 
     # =========================================
@@ -53,12 +65,18 @@ class NotificationService:
 
         for channel in channels:
 
+            outcome = self._dispatch_channel(
+                channel=channel,
+                plan=plan,
+                incident=incident,
+            )
+
             outcomes.append(
-                self._dispatch_channel(
-                    channel=channel,
-                    plan=plan,
-                    incident=incident,
-                )
+                outcome
+            )
+
+            self._record_outcome(
+                outcome
             )
 
         return outcomes
@@ -161,6 +179,12 @@ class NotificationService:
                 "status": "SKIPPED",
                 "reason": reason,
             }
+
+        self._record_attempt(
+            channel
+        )
+
+        started = time.monotonic()
 
         try:
 
@@ -270,6 +294,175 @@ class NotificationService:
                     error
                 ),
             }
+
+        finally:
+
+            self._observe_latency(
+                channel=channel,
+                value=(
+                    time.monotonic()
+                    - started
+                ),
+            )
+
+    # =========================================
+    # TELEMETRY
+    # =========================================
+
+    def _metric_channel(
+        self,
+        channel,
+    ):
+
+        if channel in {
+            "local",
+            "email",
+            "telegram",
+            "webhook",
+        }:
+
+            return channel
+
+        return "other"
+
+    def _increment(
+        self,
+        metric,
+        channel,
+    ):
+
+        collector = self.metrics
+
+        if collector is None:
+            return
+
+        safe_channel = (
+            self._metric_channel(
+                channel
+            )
+        )
+
+        try:
+
+            # Global bounded metric.
+            collector.inc(
+                metric
+            )
+
+            # Per-channel dimensions remain
+            # bounded to five possible suffixes.
+            collector.inc(
+                f"{metric}."
+                f"{safe_channel}"
+            )
+
+        except Exception:
+
+            # Telemetry must never affect
+            # notification delivery.
+            pass
+
+    def _record_attempt(
+        self,
+        channel,
+    ):
+
+        self._increment(
+            "notification_delivery_"
+            "attempts_total",
+            channel,
+        )
+
+    def _record_outcome(
+        self,
+        outcome,
+    ):
+
+        if not isinstance(
+            outcome,
+            dict,
+        ):
+            return
+
+        channel = outcome.get(
+            "channel",
+            "other",
+        )
+
+        status = str(
+            outcome.get(
+                "status",
+                "",
+            )
+        ).strip().upper()
+
+        metric_by_status = {
+            "SUCCESS": (
+                "notification_delivery_"
+                "success_total"
+            ),
+            "FAILED": (
+                "notification_delivery_"
+                "failed_total"
+            ),
+            "SKIPPED": (
+                "notification_delivery_"
+                "skipped_total"
+            ),
+            "SUPPRESSED": (
+                "notification_delivery_"
+                "suppressed_total"
+            ),
+            "DEFERRED": (
+                "notification_delivery_"
+                "deferred_total"
+            ),
+            "RATE_LIMITED": (
+                "notification_delivery_"
+                "rate_limited_total"
+            ),
+        }
+
+        metric = metric_by_status.get(
+            status
+        )
+
+        if metric is None:
+            return
+
+        self._increment(
+            metric,
+            channel,
+        )
+
+    def _observe_latency(
+        self,
+        channel,
+        value,
+    ):
+
+        collector = self.metrics
+
+        if collector is None:
+            return
+
+        try:
+
+            collector.observe(
+                "notification_delivery_"
+                "latency_seconds",
+                value,
+                label=(
+                    self._metric_channel(
+                        channel
+                    )
+                ),
+            )
+
+        except Exception:
+
+            # Metrics failure isolation.
+            pass
 
     # =========================================
     # DURABLE DEDUP
