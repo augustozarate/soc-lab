@@ -137,6 +137,22 @@ class NotificationRateLimitRepository:
         )
 
     # =========================================
+    # CONFIGURATION STATE
+    # =========================================
+
+    def is_disabled(
+        self,
+        channel,
+    ):
+
+        return (
+            self.limits.get(
+                channel
+            )
+            == 0
+        )
+
+    # =========================================
     # ATOMIC FIXED WINDOW
     # =========================================
 
@@ -158,14 +174,15 @@ class NotificationRateLimitRepository:
                 "status": "UNLIMITED",
             }
 
-        # Explicit zero disables delivery.
+        # Explicit zero is configuration state,
+        # not a temporary rate-limit condition.
         if limit == 0:
 
             return {
-                "status": "RATE_LIMITED",
+                "status": "DISABLED",
                 "reason": (
                     "Notification channel "
-                    "is disabled by rate limit"
+                    "is disabled by configuration"
                 ),
             }
 

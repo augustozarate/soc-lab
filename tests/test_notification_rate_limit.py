@@ -307,11 +307,31 @@ def test_zero_limit_disables_channel(
         now_provider=clock,
     )
 
-    assert (
+    decision = (
         repo.check_and_consume(
             "email"
-        )["status"]
-        == "RATE_LIMITED"
+        )
+    )
+
+    assert (
+        decision["status"]
+        == "DISABLED"
+    )
+
+    assert (
+        decision["reason"]
+        == (
+            "Notification channel "
+            "is disabled by configuration"
+        )
+    )
+
+    assert repo.is_disabled(
+        "email"
+    )
+
+    assert not repo.is_disabled(
+        "telegram"
     )
 
 
@@ -562,3 +582,287 @@ def test_naive_clock_is_rejected(
         raise AssertionError(
             "naive clock accepted"
         )
+
+
+# ============================================================
+# DISABLED CHANNEL SEMANTICS
+# ============================================================
+
+
+def test_disabled_channel_does_not_create_delivery_state(
+    tmp_path,
+):
+
+    clock = Clock(
+        datetime(
+            2026,
+            9,
+            22,
+            18,
+            0,
+            tzinfo=timezone.utc,
+        )
+    )
+
+    db = make_db(
+        tmp_path
+    )
+
+    delivery = (
+        NotificationDeliveryRepository(
+            db,
+            retry_base_seconds=30,
+            retry_max_seconds=900,
+            now_provider=clock,
+        )
+    )
+
+    limiter = (
+        NotificationRateLimitRepository(
+            db,
+            window_seconds=60,
+            limits={
+                "email": 0,
+            },
+            now_provider=clock,
+        )
+    )
+
+    class Adapter:
+
+        def __init__(
+            self,
+        ):
+
+            self.calls = 0
+
+        def send(
+            self,
+            plan,
+            incident,
+        ):
+
+            self.calls += 1
+
+            return {
+                "status": "SUCCESS",
+                "backend": "test",
+            }
+
+    adapter = Adapter()
+
+    service = NotificationService(
+        adapters={
+            "email": adapter,
+        },
+        delivery_repository=(
+            delivery
+        ),
+        rate_limit_repository=(
+            limiter
+        ),
+    )
+
+    current_plan = {
+        "incident_id": (
+            "disabled-channel"
+        ),
+        "severity": "HIGH",
+        "risk_score": 80,
+        "dedup_key": (
+            "notification:"
+            "disabled-channel:"
+            "state"
+        ),
+        "channels": [
+            "email"
+        ],
+    }
+
+    result = service.dispatch(
+        current_plan,
+        {
+            "id": (
+                "disabled-channel"
+            ),
+            "alerts": [],
+            "response_actions": [],
+        },
+    )
+
+    assert result == [
+        {
+            "channel": "email",
+            "status": "SKIPPED",
+            "reason": (
+                "Notification channel "
+                "is disabled by configuration"
+            ),
+        }
+    ]
+
+    assert adapter.calls == 0
+
+    assert delivery.get(
+        current_plan[
+            "dedup_key"
+        ],
+        "email",
+    ) is None
+
+    assert limiter.get(
+        "email"
+    ) is None
+
+
+def test_disabled_channel_can_be_reenabled_without_retry_debt(
+    tmp_path,
+):
+
+    clock = Clock(
+        datetime(
+            2026,
+            9,
+            22,
+            18,
+            30,
+            tzinfo=timezone.utc,
+        )
+    )
+
+    db = make_db(
+        tmp_path
+    )
+
+    delivery = (
+        NotificationDeliveryRepository(
+            db,
+            retry_base_seconds=30,
+            retry_max_seconds=900,
+            now_provider=clock,
+        )
+    )
+
+    limiter = (
+        NotificationRateLimitRepository(
+            db,
+            window_seconds=60,
+            limits={
+                "email": 0,
+            },
+            now_provider=clock,
+        )
+    )
+
+    class Adapter:
+
+        def __init__(
+            self,
+        ):
+
+            self.calls = 0
+
+        def send(
+            self,
+            plan,
+            incident,
+        ):
+
+            self.calls += 1
+
+            return {
+                "channel": "email",
+                "status": "SUCCESS",
+                "backend": "test",
+            }
+
+    adapter = Adapter()
+
+    service = NotificationService(
+        adapters={
+            "email": adapter,
+        },
+        delivery_repository=(
+            delivery
+        ),
+        rate_limit_repository=(
+            limiter
+        ),
+    )
+
+    current_plan = {
+        "incident_id": (
+            "reenable-channel"
+        ),
+        "severity": "HIGH",
+        "risk_score": 80,
+        "dedup_key": (
+            "notification:"
+            "reenable-channel:"
+            "state"
+        ),
+        "channels": [
+            "email"
+        ],
+    }
+
+    incident = {
+        "id": (
+            "reenable-channel"
+        ),
+        "alerts": [],
+        "response_actions": [],
+    }
+
+    first = service.dispatch(
+        current_plan,
+        incident,
+    )
+
+    assert (
+        first[0]["status"]
+        == "SKIPPED"
+    )
+
+    assert adapter.calls == 0
+
+    assert delivery.get(
+        current_plan[
+            "dedup_key"
+        ],
+        "email",
+    ) is None
+
+    # Operator enables the channel.
+    limiter.limits[
+        "email"
+    ] = 1
+
+    second = service.dispatch(
+        current_plan,
+        incident,
+    )
+
+    assert (
+        second[0]["status"]
+        == "SUCCESS"
+    )
+
+    assert adapter.calls == 1
+
+    row = delivery.get(
+        current_plan[
+            "dedup_key"
+        ],
+        "email",
+    )
+
+    assert (
+        row["status"]
+        == "SUCCESS"
+    )
+
+    assert (
+        row["attempt_count"]
+        == 1
+    )

@@ -96,6 +96,19 @@ class NotificationService:
             "dedup_key"
         )
 
+        if self._channel_is_disabled(
+            channel
+        ):
+
+            return {
+                "channel": channel,
+                "status": "SKIPPED",
+                "reason": (
+                    "Notification channel "
+                    "is disabled by configuration"
+                ),
+            }
+
         claimed = self._claim(
             dedup_key=dedup_key,
             channel=channel,
@@ -666,6 +679,41 @@ class NotificationService:
             # Notification state failures must
             # never escape into incident flow.
             pass
+
+    def _channel_is_disabled(
+        self,
+        channel,
+    ):
+
+        repository = (
+            self.rate_limit_repository
+        )
+
+        if repository is None:
+            return False
+
+        checker = getattr(
+            repository,
+            "is_disabled",
+            None,
+        )
+
+        if checker is None:
+            return False
+
+        try:
+
+            return bool(
+                checker(
+                    channel
+                )
+            )
+
+        except Exception:
+
+            # Configuration preflight failure must
+            # not silently disable a notification.
+            return False
 
     def _check_rate_limit(
         self,
