@@ -88,6 +88,10 @@ from engine.services.email_notification_adapter import (
     EmailNotificationAdapter
 )
 
+from engine.services.telegram_notification_adapter import (
+    TelegramNotificationAdapter
+)
+
 from engine.config import (
     NOTIFICATION_WEBHOOK_ENABLED,
     NOTIFICATION_WEBHOOK_URL,
@@ -105,6 +109,12 @@ from engine.config import (
     NOTIFICATION_EMAIL_FROM,
     NOTIFICATION_EMAIL_TO,
     NOTIFICATION_EMAIL_CA_BUNDLE,
+    NOTIFICATION_TELEGRAM_ENABLED,
+    NOTIFICATION_TELEGRAM_BOT_TOKEN,
+    NOTIFICATION_TELEGRAM_CHAT_ID,
+    NOTIFICATION_TELEGRAM_TIMEOUT_SECONDS,
+    NOTIFICATION_TELEGRAM_MAX_MESSAGE_CHARS,
+    NOTIFICATION_TELEGRAM_CA_BUNDLE,
 )
 
 from engine.behavior_engine import (
@@ -322,6 +332,66 @@ def build_services(container):
         ] = (
             container
             .email_notification_adapter
+        )
+
+    container.telegram_notification_adapter = None
+
+    if NOTIFICATION_TELEGRAM_ENABLED:
+
+        required_telegram_config = {
+            "NOTIFICATION_TELEGRAM_BOT_TOKEN": (
+                NOTIFICATION_TELEGRAM_BOT_TOKEN
+            ),
+            "NOTIFICATION_TELEGRAM_CHAT_ID": (
+                NOTIFICATION_TELEGRAM_CHAT_ID
+            ),
+        }
+
+        missing_telegram_config = [
+            name
+            for (
+                name,
+                value,
+            ) in required_telegram_config.items()
+            if not value
+        ]
+
+        if missing_telegram_config:
+
+            raise ValueError(
+                "Missing required Telegram "
+                "notification configuration: "
+                + ", ".join(
+                    missing_telegram_config
+                )
+            )
+
+        container.telegram_notification_adapter = (
+            TelegramNotificationAdapter(
+                bot_token=(
+                    NOTIFICATION_TELEGRAM_BOT_TOKEN
+                ),
+                chat_id=(
+                    NOTIFICATION_TELEGRAM_CHAT_ID
+                ),
+                timeout_seconds=(
+                    NOTIFICATION_TELEGRAM_TIMEOUT_SECONDS
+                ),
+                max_message_chars=(
+                    NOTIFICATION_TELEGRAM_MAX_MESSAGE_CHARS
+                ),
+                ca_bundle=(
+                    NOTIFICATION_TELEGRAM_CA_BUNDLE
+                    or None
+                ),
+            )
+        )
+
+        notification_adapters[
+            "telegram"
+        ] = (
+            container
+            .telegram_notification_adapter
         )
 
     container.webhook_notification_adapter = None

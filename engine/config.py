@@ -370,6 +370,70 @@ NOTIFICATION_EMAIL_CA_BUNDLE = (
 )
 
 
+NOTIFICATION_TELEGRAM_ENABLED = _env_bool(
+    "NOTIFICATION_TELEGRAM_ENABLED",
+    False,
+)
+
+NOTIFICATION_TELEGRAM_BOT_TOKEN = (
+    os.getenv(
+        "NOTIFICATION_TELEGRAM_BOT_TOKEN",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_TELEGRAM_CHAT_ID = (
+    os.getenv(
+        "NOTIFICATION_TELEGRAM_CHAT_ID",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_TELEGRAM_TIMEOUT_SECONDS = float(
+    os.getenv(
+        "NOTIFICATION_TELEGRAM_TIMEOUT_SECONDS",
+        "5",
+    )
+)
+
+if NOTIFICATION_TELEGRAM_TIMEOUT_SECONDS <= 0:
+
+    raise ValueError(
+        "NOTIFICATION_TELEGRAM_TIMEOUT_SECONDS "
+        "must be greater than 0"
+    )
+
+
+NOTIFICATION_TELEGRAM_MAX_MESSAGE_CHARS = int(
+    os.getenv(
+        "NOTIFICATION_TELEGRAM_MAX_MESSAGE_CHARS",
+        "3500",
+    )
+)
+
+if not (
+    1
+    <= NOTIFICATION_TELEGRAM_MAX_MESSAGE_CHARS
+    <= 4096
+):
+
+    raise ValueError(
+        "NOTIFICATION_TELEGRAM_MAX_MESSAGE_CHARS "
+        "must be between 1 and 4096"
+    )
+
+
+NOTIFICATION_TELEGRAM_CA_BUNDLE = (
+    os.getenv(
+        "NOTIFICATION_TELEGRAM_CA_BUNDLE",
+        "",
+    )
+    .strip()
+)
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True
