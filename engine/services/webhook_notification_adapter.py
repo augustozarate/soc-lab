@@ -20,6 +20,8 @@ class WebhookNotificationAdapter:
         max_payload_bytes=16384,
         payload_builder=None,
         post=None,
+        auth_token=None,
+        ca_bundle=None,
     ):
 
         self.url = self._validate_url(
@@ -56,6 +58,18 @@ class WebhookNotificationAdapter:
         self.post = (
             post
             or requests.post
+        )
+
+        self.auth_token = (
+            self._validate_auth_token(
+                auth_token
+            )
+        )
+
+        self.verify = (
+            self._validate_ca_bundle(
+                ca_bundle
+            )
         )
 
     # =========================================
@@ -113,6 +127,91 @@ class WebhookNotificationAdapter:
 
         return value
 
+    def _validate_auth_token(
+        self,
+        token,
+    ):
+
+        if token is None:
+            return None
+
+        if not isinstance(
+            token,
+            str,
+        ):
+
+            raise TypeError(
+                "Webhook auth token "
+                "must be a string"
+            )
+
+        value = token.strip()
+
+        if not value:
+            return None
+
+        if (
+            "\r" in value
+            or "\n" in value
+        ):
+
+            raise ValueError(
+                "Webhook auth token "
+                "contains invalid characters"
+            )
+
+        return value
+
+    def _validate_ca_bundle(
+        self,
+        ca_bundle,
+    ):
+
+        if ca_bundle is None:
+            return True
+
+        if not isinstance(
+            ca_bundle,
+            str,
+        ):
+
+            raise TypeError(
+                "Webhook CA bundle "
+                "must be a string path"
+            )
+
+        value = ca_bundle.strip()
+
+        if not value:
+            return True
+
+        return value
+
+    # =========================================
+    # HEADERS
+    # =========================================
+
+    def _headers(
+        self,
+    ):
+
+        headers = {
+            "Content-Type": (
+                "application/json"
+            ),
+        }
+
+        if self.auth_token:
+
+            headers[
+                "Authorization"
+            ] = (
+                "Bearer "
+                f"{self.auth_token}"
+            )
+
+        return headers
+
     # =========================================
     # DELIVERY
     # =========================================
@@ -156,16 +255,12 @@ class WebhookNotificationAdapter:
             response = self.post(
                 self.url,
                 json=payload,
-                headers={
-                    "Content-Type": (
-                        "application/json"
-                    ),
-                },
+                headers=self._headers(),
                 timeout=(
                     self.timeout_seconds
                 ),
                 allow_redirects=False,
-                verify=True,
+                verify=self.verify,
             )
 
         except requests.exceptions.Timeout:

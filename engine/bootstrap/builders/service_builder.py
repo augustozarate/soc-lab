@@ -89,6 +89,8 @@ from engine.config import (
     NOTIFICATION_WEBHOOK_URL,
     NOTIFICATION_WEBHOOK_TIMEOUT_SECONDS,
     NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES,
+    NOTIFICATION_WEBHOOK_AUTH_TOKEN,
+    NOTIFICATION_WEBHOOK_CA_BUNDLE,
 )
 
 from engine.behavior_engine import (
@@ -249,6 +251,14 @@ def build_services(container):
                 ),
                 max_payload_bytes=(
                     NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES
+                ),
+                auth_token=(
+                    NOTIFICATION_WEBHOOK_AUTH_TOKEN
+                    or None
+                ),
+                ca_bundle=(
+                    NOTIFICATION_WEBHOOK_CA_BUNDLE
+                    or None
                 ),
             )
         )

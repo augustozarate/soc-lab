@@ -256,6 +256,23 @@ if NOTIFICATION_WEBHOOK_MAX_PAYLOAD_BYTES <= 0:
     )
 
 
+NOTIFICATION_WEBHOOK_AUTH_TOKEN = (
+    os.getenv(
+        "NOTIFICATION_WEBHOOK_AUTH_TOKEN",
+        "",
+    )
+    .strip()
+)
+
+NOTIFICATION_WEBHOOK_CA_BUNDLE = (
+    os.getenv(
+        "NOTIFICATION_WEBHOOK_CA_BUNDLE",
+        "",
+    )
+    .strip()
+)
+
+
 THREAT_INTEL_PREFLIGHT_ENABLED = _env_bool(
     "THREAT_INTEL_PREFLIGHT_ENABLED",
     True
