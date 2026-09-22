@@ -359,7 +359,7 @@ def test_authentication_error_is_sanitized():
         )
 
 
-def test_rate_limit_error_is_sanitized():
+def test_rate_limit_returns_structured_retry():
 
     recorder = Recorder(
         response=Response(
@@ -376,36 +376,42 @@ def test_rate_limit_error_is_sanitized():
         )
     )
 
-    try:
-
+    result = (
         adapter(
             recorder
         ).send(
             plan(),
             incident(),
         )
+    )
 
-    except RuntimeError as error:
-
-        value = str(
-            error
-        )
-
-        assert value == (
-            "Telegram delivery failed: "
+    assert result == {
+        "channel": "telegram",
+        "status": "RATE_LIMITED",
+        "backend": (
+            "telegram_bot_api"
+        ),
+        "http_status": 429,
+        "reason": (
+            "Telegram delivery "
             "rate limited"
-        )
+        ),
+        "retry_after_seconds": 42,
+    }
 
-        assert (
-            "PRIVATE"
-            not in value
+    assert (
+        "PRIVATE PROVIDER TEXT"
+        not in str(
+            result
         )
+    )
 
-    else:
-
-        raise AssertionError(
-            "429 unexpectedly succeeded"
+    assert (
+        TOKEN
+        not in str(
+            result
         )
+    )
 
 
 def test_server_error_is_sanitized():

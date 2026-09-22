@@ -280,7 +280,8 @@ class NotificationDeliveryRepository:
                 SELECT
                     status,
                     attempt_count,
-                    last_attempt_at
+                    last_attempt_at,
+                    provider_retry_at
                 FROM notification_deliveries
                 WHERE dedup_key = ?
                   AND channel = ?
@@ -363,32 +364,66 @@ class NotificationDeliveryRepository:
                 )
             )
 
-            delay = self._retry_delay(
-                attempt_count
-            )
+            provider_retry_value = row[
+                "provider_retry_at"
+            ]
 
-            retry_at = (
-                last_attempt
-                + timedelta(
-                    seconds=delay
+            if (
+                status == "RATE_LIMITED"
+                and provider_retry_value
+            ):
+
+                retry_at = (
+                    _normalize_datetime(
+                        provider_retry_value,
+                        "provider_retry_at",
+                    )
                 )
-            )
 
-            if now < retry_at:
+                if now < retry_at:
 
-                return {
-                    "status": "DEFERRED",
-                    "reason": (
-                        "Notification retry "
-                        "backoff active"
-                    ),
-                    "attempt_count": (
-                        attempt_count
-                    ),
-                    "retry_at": _iso(
-                        retry_at
-                    ),
-                }
+                    return {
+                        "status": "DEFERRED",
+                        "reason": (
+                            "Provider retry "
+                            "boundary active"
+                        ),
+                        "attempt_count": (
+                            attempt_count
+                        ),
+                        "retry_at": _iso(
+                            retry_at
+                        ),
+                    }
+
+            else:
+
+                delay = self._retry_delay(
+                    attempt_count
+                )
+
+                retry_at = (
+                    last_attempt
+                    + timedelta(
+                        seconds=delay
+                    )
+                )
+
+                if now < retry_at:
+
+                    return {
+                        "status": "DEFERRED",
+                        "reason": (
+                            "Notification retry "
+                            "backoff active"
+                        ),
+                        "attempt_count": (
+                            attempt_count
+                        ),
+                        "retry_at": _iso(
+                            retry_at
+                        ),
+                    }
 
             cursor = conn.execute(
                 """
@@ -404,7 +439,8 @@ class NotificationDeliveryRepository:
                     updated_at = ?,
                     last_attempt_at = ?,
                     delivered_at = NULL,
-                    last_error = NULL
+                    last_error = NULL,
+                    provider_retry_at = NULL
                 WHERE dedup_key = ?
                   AND channel = ?
                   AND status IN (
@@ -646,10 +682,53 @@ class NotificationDeliveryRepository:
         dedup_key,
         channel,
         reason,
+        retry_after_seconds=None,
     ):
 
+        now_value = self._now()
+
+        provider_retry_at = None
+
+        if retry_after_seconds is not None:
+
+            if (
+                isinstance(
+                    retry_after_seconds,
+                    bool,
+                )
+                or not isinstance(
+                    retry_after_seconds,
+                    int,
+                )
+            ):
+
+                raise ValueError(
+                    "retry_after_seconds must be "
+                    "an integer"
+                )
+
+            if not (
+                1
+                <= retry_after_seconds
+                <= 86400
+            ):
+
+                raise ValueError(
+                    "retry_after_seconds must be "
+                    "between 1 and 86400"
+                )
+
+            provider_retry_at = _iso(
+                now_value
+                + timedelta(
+                    seconds=(
+                        retry_after_seconds
+                    )
+                )
+            )
+
         now = _iso(
-            self._now()
+            now_value
         )
 
         with self.db.connect() as conn:
@@ -662,7 +741,8 @@ class NotificationDeliveryRepository:
                     backend = NULL,
                     updated_at = ?,
                     delivered_at = NULL,
-                    last_error = ?
+                    last_error = ?,
+                    provider_retry_at = ?
                 WHERE dedup_key = ?
                   AND channel = ?
                   AND status = 'PENDING'
@@ -672,6 +752,7 @@ class NotificationDeliveryRepository:
                     str(
                         reason
                     ),
+                    provider_retry_at,
                     dedup_key,
                     channel,
                 ),
@@ -786,7 +867,8 @@ class NotificationDeliveryRepository:
                     updated_at,
                     last_attempt_at,
                     delivered_at,
-                    last_error
+                    last_error,
+                    provider_retry_at
                 FROM notification_deliveries
                 WHERE dedup_key = ?
                   AND channel = ?
@@ -825,7 +907,8 @@ class NotificationDeliveryRepository:
                     updated_at,
                     last_attempt_at,
                     delivered_at,
-                    last_error
+                    last_error,
+                    provider_retry_at
                 FROM notification_deliveries
                 WHERE incident_id = ?
                 ORDER BY

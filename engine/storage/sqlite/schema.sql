@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
     last_attempt_at TEXT,
     delivered_at TEXT,
     last_error TEXT,
+    provider_retry_at TEXT,
 
     PRIMARY KEY (
         dedup_key,

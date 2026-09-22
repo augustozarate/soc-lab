@@ -15,6 +15,8 @@ class TelegramNotificationAdapter:
         "https://api.telegram.org"
     )
 
+    MAX_RETRY_AFTER_SECONDS = 86400
+
     def __init__(
         self,
         bot_token,
@@ -294,6 +296,71 @@ class TelegramNotificationAdapter:
         )
 
     # =========================================
+    # PROVIDER RETRY
+    # =========================================
+
+    def _retry_after_seconds(
+        self,
+        response,
+    ):
+
+        try:
+
+            body = response.json()
+
+        except (
+            ValueError,
+            TypeError,
+        ):
+
+            return None
+
+        if not isinstance(
+            body,
+            dict,
+        ):
+
+            return None
+
+        parameters = body.get(
+            "parameters"
+        )
+
+        if not isinstance(
+            parameters,
+            dict,
+        ):
+
+            return None
+
+        value = parameters.get(
+            "retry_after"
+        )
+
+        if (
+            isinstance(
+                value,
+                bool,
+            )
+            or not isinstance(
+                value,
+                int,
+            )
+        ):
+
+            return None
+
+        if not (
+            1
+            <= value
+            <= self.MAX_RETRY_AFTER_SECONDS
+        ):
+
+            return None
+
+        return value
+
+    # =========================================
     # DELIVERY
     # =========================================
 
@@ -374,10 +441,32 @@ class TelegramNotificationAdapter:
 
         if status_code == 429:
 
-            raise RuntimeError(
-                "Telegram delivery failed: "
-                "rate limited"
+            retry_after = (
+                self._retry_after_seconds(
+                    response
+                )
             )
+
+            result = {
+                "channel": "telegram",
+                "status": "RATE_LIMITED",
+                "backend": (
+                    "telegram_bot_api"
+                ),
+                "http_status": 429,
+                "reason": (
+                    "Telegram delivery "
+                    "rate limited"
+                ),
+            }
+
+            if retry_after is not None:
+
+                result[
+                    "retry_after_seconds"
+                ] = retry_after
+
+            return result
 
         if not (
             200
