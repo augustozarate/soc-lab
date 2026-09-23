@@ -1,5 +1,8 @@
+import asyncio
 import stat
 from pathlib import Path
+
+import aiohttp
 
 from threema.gateway import Connection
 from threema.gateway.key import Key
@@ -8,12 +11,14 @@ from threema.gateway.key import Key
 class ThreemaSecureConnectionFactory:
 
     MAX_KEY_FILE_BYTES = 4096
+    MAX_TIMEOUT_SECONDS = 60
 
     def __init__(
         self,
         gateway_id,
         api_secret,
         private_key_file,
+        timeout_seconds=5,
         connection_class=None,
     ):
 
@@ -35,6 +40,12 @@ class ThreemaSecureConnectionFactory:
             private_key_file
         ).expanduser()
 
+        self.timeout_seconds = (
+            self._validate_timeout(
+                timeout_seconds
+            )
+        )
+
         self.connection_class = (
             connection_class
             or Connection
@@ -48,9 +59,36 @@ class ThreemaSecureConnectionFactory:
         self,
     ):
 
+        # aiohttp.ClientSession is bound to the
+        # current running event loop. Creating a
+        # Threema Connection outside that loop is
+        # therefore forbidden.
+        try:
+
+            asyncio.get_running_loop()
+
+        except RuntimeError:
+
+            raise RuntimeError(
+                "Threema connection must be "
+                "created inside a running "
+                "event loop"
+            ) from None
+
         private_key = (
             self._load_private_key()
         )
+
+        session_kwargs = {
+            "timeout": (
+                aiohttp.ClientTimeout(
+                    total=(
+                        self.timeout_seconds
+                    ),
+                )
+            ),
+            "allow_redirects": False,
+        }
 
         try:
 
@@ -58,7 +96,10 @@ class ThreemaSecureConnectionFactory:
                 identity=self.gateway_id,
                 secret=self.api_secret,
                 key=private_key,
-                blocking=True,
+                blocking=False,
+                session_kwargs=(
+                    session_kwargs
+                ),
             )
 
         except Exception:
@@ -105,6 +146,51 @@ class ThreemaSecureConnectionFactory:
             raise ValueError(
                 f"Threema {label} "
                 "contains invalid characters"
+            )
+
+        return value
+
+    def _validate_timeout(
+        self,
+        value,
+    ):
+
+        if isinstance(
+            value,
+            bool,
+        ):
+
+            raise ValueError(
+                "Threema timeout must be "
+                "a positive number"
+            )
+
+        try:
+
+            value = float(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            raise ValueError(
+                "Threema timeout must be "
+                "a positive number"
+            ) from None
+
+        if not (
+            0 < value
+            <= self.MAX_TIMEOUT_SECONDS
+        ):
+
+            raise ValueError(
+                "Threema timeout must be "
+                "greater than 0 and at most "
+                f"{self.MAX_TIMEOUT_SECONDS} "
+                "seconds"
             )
 
         return value

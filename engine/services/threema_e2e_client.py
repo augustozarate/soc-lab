@@ -1,5 +1,3 @@
-import asyncio
-
 from threema.gateway import e2e
 from threema.gateway.key import Key
 
@@ -24,11 +22,11 @@ class ThreemaE2EClient:
             connection,
             "blocking",
             None,
-        ) is not True:
+        ) is not False:
 
             raise ValueError(
                 "Threema connection must use "
-                "blocking mode"
+                "async mode"
             )
 
         self.connection = connection
@@ -149,7 +147,7 @@ class ThreemaE2EClient:
     # DELIVERY
     # =========================================
 
-    def send_text(
+    async def send_text(
         self,
         text,
     ):
@@ -171,17 +169,6 @@ class ThreemaE2EClient:
                 "must not be empty"
             )
 
-        return self._run_blocking_sdk_call(
-            lambda: self._send_text(
-                text
-            )
-        )
-
-    def _send_text(
-        self,
-        text,
-    ):
-
         message = self.message_class(
             self.connection,
             to_id=self.recipient_id,
@@ -189,46 +176,4 @@ class ThreemaE2EClient:
             text=text,
         )
 
-        return message.send()
-
-    # =========================================
-    # SDK SYNC BOUNDARY
-    # =========================================
-
-    def _run_blocking_sdk_call(
-        self,
-        operation,
-    ):
-
-        try:
-
-            asyncio.get_running_loop()
-
-        except RuntimeError:
-
-            pass
-
-        else:
-
-            raise RuntimeError(
-                "Threema blocking SDK cannot "
-                "run inside an active event loop"
-            )
-
-        loop = asyncio.new_event_loop()
-
-        try:
-
-            asyncio.set_event_loop(
-                loop
-            )
-
-            return operation()
-
-        finally:
-
-            asyncio.set_event_loop(
-                None
-            )
-
-            loop.close()
+        return await message.send()

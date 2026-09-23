@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from threema.gateway.key import Key
@@ -17,6 +18,10 @@ class ConnectionRecorder:
     ):
 
         self.kwargs = kwargs
+
+        self.blocking = kwargs.get(
+            "blocking"
+        )
 
         self.__class__.calls.append(
             kwargs
@@ -77,6 +82,10 @@ def factory(
                 "TEST-SECRET-DO-NOT-LOG",
             ),
             private_key_file=path,
+            timeout_seconds=kwargs.get(
+                "timeout_seconds",
+                5,
+            ),
             connection_class=(
                 kwargs.get(
                     "connection_class",
@@ -87,7 +96,25 @@ def factory(
     )
 
 
-def test_valid_private_key_builds_blocking_connection(
+async def build_async(
+    instance,
+):
+
+    return instance.build()
+
+
+def run_build(
+    instance,
+):
+
+    return asyncio.run(
+        build_async(
+            instance
+        )
+    )
+
+
+def test_valid_private_key_builds_async_connection(
     tmp_path,
 ):
 
@@ -102,9 +129,11 @@ def test_valid_private_key_builds_blocking_connection(
         key_file
     )
 
-    result = factory(
-        key_file
-    ).build()
+    result = run_build(
+        factory(
+            key_file
+        )
+    )
 
     assert isinstance(
         result,
@@ -131,7 +160,7 @@ def test_valid_private_key_builds_blocking_connection(
 
     assert (
         call["blocking"]
-        is True
+        is False
     )
 
     assert "key_file" not in call
@@ -143,6 +172,64 @@ def test_valid_private_key_builds_blocking_connection(
     assert encoded.startswith(
         "private:"
     )
+
+    session_kwargs = (
+        call["session_kwargs"]
+    )
+
+    assert (
+        session_kwargs[
+            "allow_redirects"
+        ]
+        is False
+    )
+
+    assert (
+        session_kwargs[
+            "timeout"
+        ].total
+        == 5
+    )
+
+    assert "ssl" not in session_kwargs
+    assert "verify" not in session_kwargs
+
+
+def test_build_outside_running_loop_fails_closed(
+    tmp_path,
+):
+
+    key_file = (
+        tmp_path
+        / "sender.key"
+    )
+
+    write_private_key(
+        key_file
+    )
+
+    try:
+
+        factory(
+            key_file
+        ).build()
+
+    except RuntimeError as error:
+
+        assert str(
+            error
+        ) == (
+            "Threema connection must be "
+            "created inside a running "
+            "event loop"
+        )
+
+    else:
+
+        raise AssertionError(
+            "Connection built without "
+            "running event loop"
+        )
 
 
 def test_missing_private_key_is_rejected(
@@ -156,9 +243,11 @@ def test_missing_private_key_is_rejected(
 
     try:
 
-        factory(
-            missing
-        ).build()
+        run_build(
+            factory(
+                missing
+            )
+        )
 
     except ValueError as error:
 
@@ -200,9 +289,11 @@ def test_symlink_private_key_is_rejected(
 
     try:
 
-        factory(
-            link
-        ).build()
+        run_build(
+            factory(
+                link
+            )
+        )
 
     except ValueError as error:
 
@@ -237,9 +328,11 @@ def test_permissive_private_key_mode_is_rejected(
 
     try:
 
-        factory(
-            key_file
-        ).build()
+        run_build(
+            factory(
+                key_file
+            )
+        )
 
     except ValueError as error:
 
@@ -277,9 +370,11 @@ def test_public_key_file_is_rejected(
 
     try:
 
-        factory(
-            key_file
-        ).build()
+        run_build(
+            factory(
+                key_file
+            )
+        )
 
     except ValueError as error:
 
@@ -337,7 +432,9 @@ def test_connection_error_is_sanitized(
 
     try:
 
-        instance.build()
+        run_build(
+            instance
+        )
 
     except RuntimeError as error:
 
@@ -351,6 +448,7 @@ def test_connection_error_is_sanitized(
         )
 
         assert secret not in message
+
         assert str(
             key_file
         ) not in message

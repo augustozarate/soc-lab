@@ -8,14 +8,14 @@ from engine.services.threema_e2e_client import (
 )
 
 
+class AsyncConnection:
+
+    blocking = False
+
+
 class BlockingConnection:
 
     blocking = True
-
-
-class NonBlockingConnection:
-
-    blocking = False
 
 
 class MessageRecorder:
@@ -36,18 +36,11 @@ class MessageRecorder:
         self.text = text
         self.send_count = 0
 
-        # The SDK sync boundary must establish
-        # an explicit non-running event loop.
-        self.loop = asyncio.get_event_loop()
-
-        assert self.loop is not None
-        assert not self.loop.is_running()
-
         self.__class__.instances.append(
             self
         )
 
-    def send(
+    async def send(
         self,
     ):
 
@@ -70,7 +63,7 @@ def public_key():
 def test_accepts_valid_pinned_public_key():
 
     client = ThreemaE2EClient(
-        connection=BlockingConnection(),
+        connection=AsyncConnection(),
         recipient_id="ABCD1234",
         recipient_public_key=(
             public_key()
@@ -100,7 +93,7 @@ def test_private_key_is_rejected_as_recipient_key():
     try:
 
         ThreemaE2EClient(
-            connection=BlockingConnection(),
+            connection=AsyncConnection(),
             recipient_id="ABCD1234",
             recipient_public_key=(
                 encoded_private
@@ -139,9 +132,7 @@ def test_invalid_recipient_ids_are_rejected():
         try:
 
             ThreemaE2EClient(
-                connection=(
-                    BlockingConnection()
-                ),
+                connection=AsyncConnection(),
                 recipient_id=value,
                 recipient_public_key=(
                     public_key()
@@ -152,6 +143,7 @@ def test_invalid_recipient_ids_are_rejected():
             )
 
         except ValueError:
+
             pass
 
         else:
@@ -162,13 +154,13 @@ def test_invalid_recipient_ids_are_rejected():
             )
 
 
-def test_nonblocking_connection_is_rejected():
+def test_blocking_connection_is_rejected():
 
     try:
 
         ThreemaE2EClient(
             connection=(
-                NonBlockingConnection()
+                BlockingConnection()
             ),
             recipient_id="ABCD1234",
             recipient_public_key=(
@@ -180,14 +172,14 @@ def test_nonblocking_connection_is_rejected():
     except ValueError as error:
 
         assert (
-            "blocking mode"
+            "async mode"
             in str(error)
         )
 
     else:
 
         raise AssertionError(
-            "Non-blocking connection accepted"
+            "Blocking connection accepted"
         )
 
 
@@ -195,7 +187,7 @@ def test_send_uses_explicit_pinned_key_once():
 
     MessageRecorder.instances.clear()
 
-    connection = BlockingConnection()
+    connection = AsyncConnection()
 
     client = ThreemaE2EClient(
         connection=connection,
@@ -206,8 +198,14 @@ def test_send_uses_explicit_pinned_key_once():
         message_class=MessageRecorder,
     )
 
-    result = client.send_text(
-        "[SOC][HIGH]\nIncident: test"
+    async def proof():
+
+        return await client.send_text(
+            "[SOC][HIGH]\nIncident: test"
+        )
+
+    result = asyncio.run(
+        proof()
     )
 
     assert result == (
@@ -244,64 +242,54 @@ def test_send_uses_explicit_pinned_key_once():
 
 def test_real_sdk_encrypts_locally_without_lookup_or_network():
 
-    sender_private, _ = (
-        Key.generate_pair()
-    )
+    async def proof():
 
-    _, recipient_public = (
-        Key.generate_pair()
-    )
-
-    class LocalConnection:
-
-        def __init__(
-            self,
-        ):
-
-            self.blocking = True
-            self.unwrap = self
-            self.id = "*LABTEST"
-            self.key = sender_private
-
-            self.lookup_count = 0
-            self.network_count = 0
-
-        async def get_public_key(
-            self,
-            id_,
-        ):
-
-            self.lookup_count += 1
-
-            raise AssertionError(
-                "Dynamic public-key lookup "
-                "must not occur"
-            )
-
-        async def send_e2e(
-            self,
-            **data,
-        ):
-
-            self.network_count += 1
-
-            raise AssertionError(
-                "Network send must not occur"
-            )
-
-    connection = LocalConnection()
-
-    # threema.gateway 8.0.0 uses its synchronous
-    # aio_run_proxy around asyncio.get_event_loop().
-    # Python 3.12 requires an explicit current loop
-    # to avoid the SDK deprecation boundary.
-    loop = asyncio.new_event_loop()
-
-    try:
-
-        asyncio.set_event_loop(
-            loop
+        sender_private, _ = (
+            Key.generate_pair()
         )
+
+        _, recipient_public = (
+            Key.generate_pair()
+        )
+
+        class LocalConnection:
+
+            def __init__(
+                self,
+            ):
+
+                self.blocking = False
+                self.unwrap = self
+                self.id = "*LABTEST"
+                self.key = sender_private
+
+                self.lookup_count = 0
+                self.network_count = 0
+
+            async def get_public_key(
+                self,
+                id_,
+            ):
+
+                self.lookup_count += 1
+
+                raise AssertionError(
+                    "Dynamic public-key lookup "
+                    "must not occur"
+                )
+
+            async def send_e2e(
+                self,
+                **data,
+            ):
+
+                self.network_count += 1
+
+                raise AssertionError(
+                    "Network send must not occur"
+                )
+
+        connection = LocalConnection()
 
         message = e2e.TextMessage(
             connection,
@@ -313,42 +301,38 @@ def test_real_sdk_encrypts_locally_without_lookup_or_network():
             ),
         )
 
-        nonce, box = message.send(
+        nonce, box = await message.send(
             get_data_only=True
         )
 
-    finally:
-
-        asyncio.set_event_loop(
-            None
+        assert isinstance(
+            nonce,
+            bytes,
         )
 
-        loop.close()
+        assert len(
+            nonce
+        ) == 24
 
-    assert isinstance(
-        nonce,
-        bytes,
-    )
+        assert isinstance(
+            box,
+            bytes,
+        )
 
-    assert len(
-        nonce
-    ) == 24
+        assert len(
+            box
+        ) > 0
 
-    assert isinstance(
-        box,
-        bytes,
-    )
+        assert (
+            connection.lookup_count
+            == 0
+        )
 
-    assert len(
-        box
-    ) > 0
+        assert (
+            connection.network_count
+            == 0
+        )
 
-    assert (
-        connection.lookup_count
-        == 0
-    )
-
-    assert (
-        connection.network_count
-        == 0
+    asyncio.run(
+        proof()
     )
