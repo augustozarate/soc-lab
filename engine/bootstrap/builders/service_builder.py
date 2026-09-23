@@ -92,6 +92,18 @@ from engine.services.telegram_notification_adapter import (
     TelegramNotificationAdapter
 )
 
+from engine.services.threema_notification_adapter import (
+    ThreemaNotificationAdapter
+)
+
+from engine.services.threema_message_builder import (
+    ThreemaMessageBuilder
+)
+
+from engine.services.threema_connection_factory import (
+    ThreemaSecureConnectionFactory
+)
+
 from engine.config import (
     NOTIFICATION_WEBHOOK_ENABLED,
     NOTIFICATION_WEBHOOK_URL,
@@ -115,6 +127,15 @@ from engine.config import (
     NOTIFICATION_TELEGRAM_TIMEOUT_SECONDS,
     NOTIFICATION_TELEGRAM_MAX_MESSAGE_CHARS,
     NOTIFICATION_TELEGRAM_CA_BUNDLE,
+    NOTIFICATION_THREEMA_ENABLED,
+    NOTIFICATION_THREEMA_POLICY_ENABLED,
+    NOTIFICATION_THREEMA_GATEWAY_ID,
+    NOTIFICATION_THREEMA_API_SECRET,
+    NOTIFICATION_THREEMA_PRIVATE_KEY_FILE,
+    NOTIFICATION_THREEMA_RECIPIENT_ID,
+    NOTIFICATION_THREEMA_RECIPIENT_PUBLIC_KEY,
+    NOTIFICATION_THREEMA_TIMEOUT_SECONDS,
+    NOTIFICATION_THREEMA_MAX_MESSAGE_BYTES,
 )
 
 from engine.behavior_engine import (
@@ -134,6 +155,115 @@ from engine.presentation.operator_console import (
 from engine.presentation.operator_console_controller import (
     OperatorConsoleController
 )
+
+def _validate_threema_policy_config():
+
+    if (
+        NOTIFICATION_THREEMA_POLICY_ENABLED
+        and not NOTIFICATION_THREEMA_ENABLED
+    ):
+
+        raise ValueError(
+            "Threema notification policy "
+            "cannot be enabled while the "
+            "Threema adapter is disabled"
+        )
+
+
+def _build_notification_policy():
+
+    _validate_threema_policy_config()
+
+    return NotificationPolicy(
+        threema_enabled=(
+            NOTIFICATION_THREEMA_POLICY_ENABLED
+        )
+    )
+
+
+def _build_threema_notification_adapter():
+
+    if not NOTIFICATION_THREEMA_ENABLED:
+
+        return None
+
+    required = {
+        "NOTIFICATION_THREEMA_GATEWAY_ID": (
+            NOTIFICATION_THREEMA_GATEWAY_ID
+        ),
+        "NOTIFICATION_THREEMA_API_SECRET": (
+            NOTIFICATION_THREEMA_API_SECRET
+        ),
+        "NOTIFICATION_THREEMA_PRIVATE_KEY_FILE": (
+            NOTIFICATION_THREEMA_PRIVATE_KEY_FILE
+        ),
+        "NOTIFICATION_THREEMA_RECIPIENT_ID": (
+            NOTIFICATION_THREEMA_RECIPIENT_ID
+        ),
+        "NOTIFICATION_THREEMA_RECIPIENT_PUBLIC_KEY": (
+            NOTIFICATION_THREEMA_RECIPIENT_PUBLIC_KEY
+        ),
+    }
+
+    missing = [
+        name
+        for (
+            name,
+            value,
+        ) in required.items()
+        if not value
+    ]
+
+    if missing:
+
+        raise ValueError(
+            "Missing required Threema "
+            "notification configuration: "
+            + ", ".join(
+                missing
+            )
+        )
+
+    message_builder = (
+        ThreemaMessageBuilder(
+            max_bytes=(
+                NOTIFICATION_THREEMA_MAX_MESSAGE_BYTES
+            )
+        )
+    )
+
+    connection_factory = (
+        ThreemaSecureConnectionFactory(
+            gateway_id=(
+                NOTIFICATION_THREEMA_GATEWAY_ID
+            ),
+            api_secret=(
+                NOTIFICATION_THREEMA_API_SECRET
+            ),
+            private_key_file=(
+                NOTIFICATION_THREEMA_PRIVATE_KEY_FILE
+            ),
+            timeout_seconds=(
+                NOTIFICATION_THREEMA_TIMEOUT_SECONDS
+            ),
+        )
+    )
+
+    return ThreemaNotificationAdapter(
+        recipient_id=(
+            NOTIFICATION_THREEMA_RECIPIENT_ID
+        ),
+        recipient_public_key=(
+            NOTIFICATION_THREEMA_RECIPIENT_PUBLIC_KEY
+        ),
+        message_builder=(
+            message_builder
+        ),
+        connection_factory=(
+            connection_factory
+        ),
+    )
+
 
 def build_services(container):
 
@@ -239,7 +369,7 @@ def build_services(container):
     # =====================================
 
     container.notification_policy = (
-        NotificationPolicy()
+        _build_notification_policy()
     )
 
     container.local_notification_adapter = (
@@ -392,6 +522,23 @@ def build_services(container):
         ] = (
             container
             .telegram_notification_adapter
+        )
+
+    container.threema_notification_adapter = (
+        _build_threema_notification_adapter()
+    )
+
+    if (
+        container
+        .threema_notification_adapter
+        is not None
+    ):
+
+        notification_adapters[
+            "threema"
+        ] = (
+            container
+            .threema_notification_adapter
         )
 
     container.webhook_notification_adapter = None
