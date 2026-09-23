@@ -22,6 +22,15 @@ class NotificationPolicy:
         "LOW": (),
     }
 
+    def __init__(
+        self,
+        threema_enabled=False,
+    ):
+
+        self.threema_enabled = bool(
+            threema_enabled
+        )
+
     # =========================================
     # PUBLIC POLICY
     # =========================================
@@ -55,6 +64,19 @@ class NotificationPolicy:
                 (),
             )
         )
+
+        if (
+            self.threema_enabled
+            and severity
+            in {
+                "CRITICAL",
+                "HIGH",
+            }
+        ):
+
+            channels.append(
+                "threema"
+            )
 
         if not channels:
             return None

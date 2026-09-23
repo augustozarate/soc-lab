@@ -464,3 +464,105 @@ if not ABUSE_KEY:
 
 if not VT_KEY:
     print("[CONFIG] WARNING: VT_KEY not set")
+
+# =========================================
+# THREEMA NOTIFICATIONS
+# =========================================
+
+NOTIFICATION_THREEMA_ENABLED = _env_bool(
+    "NOTIFICATION_THREEMA_ENABLED",
+    False,
+)
+
+# Routing is deliberately independent from
+# adapter availability. Enabling credentials
+# must never silently alter notification policy.
+NOTIFICATION_THREEMA_POLICY_ENABLED = _env_bool(
+    "NOTIFICATION_THREEMA_POLICY_ENABLED",
+    False,
+)
+
+NOTIFICATION_THREEMA_GATEWAY_ID = (
+    os.getenv(
+        "NOTIFICATION_THREEMA_GATEWAY_ID",
+        "",
+    ).strip()
+)
+
+NOTIFICATION_THREEMA_API_SECRET = (
+    os.getenv(
+        "NOTIFICATION_THREEMA_API_SECRET",
+        "",
+    ).strip()
+)
+
+NOTIFICATION_THREEMA_PRIVATE_KEY_FILE = (
+    os.getenv(
+        "NOTIFICATION_THREEMA_PRIVATE_KEY_FILE",
+        "",
+    ).strip()
+)
+
+NOTIFICATION_THREEMA_RECIPIENT_ID = (
+    os.getenv(
+        "NOTIFICATION_THREEMA_RECIPIENT_ID",
+        "",
+    ).strip()
+)
+
+NOTIFICATION_THREEMA_RECIPIENT_PUBLIC_KEY = (
+    os.getenv(
+        "NOTIFICATION_THREEMA_RECIPIENT_PUBLIC_KEY",
+        "",
+    ).strip()
+)
+
+NOTIFICATION_THREEMA_TIMEOUT_SECONDS = float(
+    os.getenv(
+        "NOTIFICATION_THREEMA_TIMEOUT_SECONDS",
+        "5",
+    )
+)
+
+if not (
+    0
+    < NOTIFICATION_THREEMA_TIMEOUT_SECONDS
+    <= 60
+):
+
+    raise ValueError(
+        "NOTIFICATION_THREEMA_TIMEOUT_SECONDS "
+        "must be greater than 0 and at most 60"
+    )
+
+NOTIFICATION_THREEMA_MAX_MESSAGE_BYTES = int(
+    os.getenv(
+        "NOTIFICATION_THREEMA_MAX_MESSAGE_BYTES",
+        "7000",
+    )
+)
+
+if not (
+    1
+    <= NOTIFICATION_THREEMA_MAX_MESSAGE_BYTES
+    <= 7000
+):
+
+    raise ValueError(
+        "NOTIFICATION_THREEMA_MAX_MESSAGE_BYTES "
+        "must be between 1 and 7000"
+    )
+
+NOTIFICATION_RATE_LIMIT_THREEMA = int(
+    os.getenv(
+        "NOTIFICATION_RATE_LIMIT_THREEMA",
+        "0",
+    )
+)
+
+if NOTIFICATION_RATE_LIMIT_THREEMA < 0:
+
+    raise ValueError(
+        "NOTIFICATION_RATE_LIMIT_THREEMA "
+        "must be greater than or equal to 0"
+    )

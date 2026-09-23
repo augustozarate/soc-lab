@@ -351,6 +351,7 @@ class NotificationService:
             "email",
             "telegram",
             "webhook",
+            "threema",
         }:
 
             return channel

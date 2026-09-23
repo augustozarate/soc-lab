@@ -7,6 +7,7 @@ from engine.config import (
     NOTIFICATION_RATE_LIMIT_EMAIL,
     NOTIFICATION_RATE_LIMIT_TELEGRAM,
     NOTIFICATION_RATE_LIMIT_WEBHOOK,
+    NOTIFICATION_RATE_LIMIT_THREEMA,
 )
 
 from engine.storage.sqlite.database import Database
@@ -119,6 +120,9 @@ def build_repositories(
                 ),
                 "webhook": (
                     NOTIFICATION_RATE_LIMIT_WEBHOOK
+                ),
+                "threema": (
+                    NOTIFICATION_RATE_LIMIT_THREEMA
                 ),
             },
         )
