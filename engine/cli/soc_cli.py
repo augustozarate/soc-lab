@@ -15,6 +15,7 @@ COMMAND_TREE = {
     "help": {"advanced": {}},
 
     "operator": {},
+    "monitor": {},
 
     "incidents": {
         "list": {},
@@ -76,11 +77,13 @@ class SOCConsole:
         campaign_tracker=None,
         ai_analyst=None,
         operator_console_controller=None,
+        monitor_console_controller=None,
     ):
         self.routes = {
             # BASE COMMANDS
             ("help", None): self.help,
             ("operator", None): self.show_operator_console,
+            ("monitor", None): self.show_monitor_console,
             ("case", None): self.list_cases,        # opcional
             ("ai", None): self.ai_help,             # opcional
             ("util", None): self.util_help,         # opcional
@@ -141,6 +144,9 @@ class SOCConsole:
         self.operator_console_controller = (
             operator_console_controller
         )
+        self.monitor_console_controller = (
+            monitor_console_controller
+        )
         self.parser = CommandParser(COMMAND_TREE)
         self._thread = None
 
@@ -157,6 +163,22 @@ class SOCConsole:
 
         return (
             self.operator_console_controller
+            .render()
+        )
+
+    def show_monitor_console(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if self.monitor_console_controller is None:
+            raise RuntimeError(
+                "Monitor Console is unavailable"
+            )
+
+        return (
+            self.monitor_console_controller
             .render()
         )
 

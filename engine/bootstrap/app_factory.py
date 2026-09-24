@@ -83,6 +83,9 @@ def create_app():
         container.ai_analyst,
         operator_console_controller=(
             container.operator_console_controller
+        ),
+        monitor_console_controller=(
+            container.monitor_console_controller
         )
     )
 

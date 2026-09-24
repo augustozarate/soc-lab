@@ -155,8 +155,14 @@ from engine.presentation.monitor_read_model import (
 from engine.presentation.operator_console import (
     OperatorConsoleRenderer
 )
+from engine.presentation.monitor_console import (
+    MonitorConsoleRenderer
+)
 from engine.presentation.operator_console_controller import (
     OperatorConsoleController
+)
+from engine.presentation.monitor_console_controller import (
+    MonitorConsoleController
 )
 
 def _validate_threema_policy_config():
@@ -669,6 +675,21 @@ def build_services(container):
             ),
             renderer=(
                 container.operator_console_renderer
+            ),
+        )
+    )
+
+    container.monitor_console_renderer = (
+        MonitorConsoleRenderer()
+    )
+
+    container.monitor_console_controller = (
+        MonitorConsoleController(
+            read_model=(
+                container.monitor_read_model
+            ),
+            renderer=(
+                container.monitor_console_renderer
             ),
         )
     )
