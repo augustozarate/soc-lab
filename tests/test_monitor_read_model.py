@@ -54,6 +54,30 @@ class FakeOperatorReadModel:
         )
 
 
+class FakeNotificationChannelReadModel:
+
+    def __init__(
+        self,
+        snapshot=None,
+    ):
+        self.calls = 0
+        self.source = (
+            {
+                "local": "READY",
+                "email": "DISABLED",
+                "telegram": "DISABLED",
+                "webhook": "DISABLED",
+                "threema": "DISABLED",
+            }
+            if snapshot is None
+            else snapshot
+        )
+
+    def snapshot(self):
+        self.calls += 1
+        return self.source
+
+
 class FakeRuntimeMetricsReader:
 
     def __init__(
@@ -107,18 +131,26 @@ def build_model(
         else metrics
     )
 
+    channels = (
+        FakeNotificationChannelReadModel()
+    )
+
     return (
         MonitorReadModel(
             operator_read_model=operator,
             runtime_metrics_reader=reader,
+            notification_channel_read_model=(
+                channels
+            ),
         ),
         operator,
         reader,
+        channels,
     )
 
 
 def test_snapshot_has_bounded_top_level_contract():
-    model, _, _ = build_model()
+    model, _, _, _ = build_model()
 
     snapshot = model.snapshot()
 
@@ -126,11 +158,12 @@ def test_snapshot_has_bounded_top_level_contract():
         "operator",
         "runtime",
         "health",
+        "channels",
     ]
 
 
 def test_operator_snapshot_is_forwarded():
-    model, operator, _ = build_model()
+    model, operator, _, _ = build_model()
 
     snapshot = model.snapshot(
         recent_event_limit=4
@@ -152,7 +185,7 @@ def test_operator_snapshot_is_forwarded():
 
 
 def test_runtime_metrics_are_reduced_to_view():
-    model, _, reader = build_model()
+    model, _, reader, _ = build_model()
 
     snapshot = model.snapshot()
 
@@ -175,7 +208,7 @@ def test_runtime_metrics_are_reduced_to_view():
 
 
 def test_healthy_runtime_is_assessed():
-    model, _, _ = build_model()
+    model, _, _, _ = build_model()
 
     snapshot = model.snapshot()
 
@@ -200,9 +233,16 @@ def test_missing_metrics_fail_read_only_safe():
         None
     )
 
+    channels = (
+        FakeNotificationChannelReadModel()
+    )
+
     model = MonitorReadModel(
         operator_read_model=operator,
         runtime_metrics_reader=reader,
+        notification_channel_read_model=(
+            channels
+        ),
     )
 
     snapshot = model.snapshot()
@@ -230,7 +270,7 @@ def test_missing_metrics_fail_read_only_safe():
 
 
 def test_snapshot_is_detached_from_sources():
-    model, operator, reader = build_model()
+    model, operator, reader, _ = build_model()
 
     snapshot = model.snapshot()
 
@@ -428,9 +468,93 @@ def test_container_monitor_snapshot_is_read_only_safe(
         "operator",
         "runtime",
         "health",
+        "channels",
     ]
 
     assert (
         snapshot["health"]["status"]
         == "UNKNOWN"
+    )
+
+
+def test_channel_snapshot_is_composed():
+    (
+        model,
+        _,
+        _,
+        channels,
+    ) = build_model()
+
+    snapshot = model.snapshot()
+
+    assert channels.calls == 1
+
+    assert snapshot["channels"] == {
+        "local": "READY",
+        "email": "DISABLED",
+        "telegram": "DISABLED",
+        "webhook": "DISABLED",
+        "threema": "DISABLED",
+    }
+
+
+def test_channel_snapshot_is_detached_from_source():
+    source = {
+        "local": "READY",
+        "email": "READY",
+        "telegram": "DISABLED",
+        "webhook": "DISABLED",
+        "threema": "INERT",
+    }
+
+    operator = FakeOperatorReadModel()
+
+    reader = FakeRuntimeMetricsReader(
+        {
+            "generated_at": (
+                "2026-09-24T12:00:00+00:00"
+            ),
+            "uptime_seconds": 1,
+            "counters": {},
+            "gauges": {},
+            "observations": {},
+        }
+    )
+
+    channels = (
+        FakeNotificationChannelReadModel(
+            source
+        )
+    )
+
+    model = MonitorReadModel(
+        operator_read_model=operator,
+        runtime_metrics_reader=reader,
+        notification_channel_read_model=(
+            channels
+        ),
+    )
+
+    snapshot = model.snapshot()
+
+    snapshot["channels"][
+        "email"
+    ] = "DISABLED"
+
+    assert source["email"] == "READY"
+
+
+def test_channels_are_bounded_to_expected_surface():
+    model, _, _, _ = build_model()
+
+    snapshot = model.snapshot()
+
+    assert tuple(
+        snapshot["channels"]
+    ) == (
+        "local",
+        "email",
+        "telegram",
+        "webhook",
+        "threema",
     )

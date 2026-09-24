@@ -152,6 +152,9 @@ from engine.presentation.operator_read_model import (
 from engine.presentation.monitor_read_model import (
     MonitorReadModel
 )
+from engine.presentation.notification_channel_read_model import (
+    NotificationChannelReadModel
+)
 from engine.presentation.operator_console import (
     OperatorConsoleRenderer
 )
@@ -653,6 +656,34 @@ def build_services(container):
         )
     )
 
+    container.notification_channel_read_model = (
+        NotificationChannelReadModel(
+            local_available=(
+                container.local_notification_adapter
+                is not None
+            ),
+            email_available=(
+                container.email_notification_adapter
+                is not None
+            ),
+            telegram_available=(
+                container.telegram_notification_adapter
+                is not None
+            ),
+            webhook_available=(
+                container.webhook_notification_adapter
+                is not None
+            ),
+            threema_available=(
+                container.threema_notification_adapter
+                is not None
+            ),
+            threema_policy_enabled=(
+                NOTIFICATION_THREEMA_POLICY_ENABLED
+            ),
+        )
+    )
+
     container.monitor_read_model = (
         MonitorReadModel(
             operator_read_model=(
@@ -660,6 +691,9 @@ def build_services(container):
             ),
             runtime_metrics_reader=(
                 container.runtime_metrics_reader
+            ),
+            notification_channel_read_model=(
+                container.notification_channel_read_model
             ),
         )
     )

@@ -14,12 +14,16 @@ class MonitorReadModel:
         self,
         operator_read_model,
         runtime_metrics_reader,
+        notification_channel_read_model,
     ):
         self.operator_read_model = (
             operator_read_model
         )
         self.runtime_metrics_reader = (
             runtime_metrics_reader
+        )
+        self.notification_channel_read_model = (
+            notification_channel_read_model
         )
 
     def snapshot(
@@ -48,6 +52,11 @@ class MonitorReadModel:
             metrics_snapshot
         ).build()
 
+        channels = (
+            self.notification_channel_read_model
+            .snapshot()
+        )
+
         return {
             "operator": deepcopy(
                 operator
@@ -57,5 +66,8 @@ class MonitorReadModel:
             ),
             "health": deepcopy(
                 health
+            ),
+            "channels": deepcopy(
+                channels
             ),
         }

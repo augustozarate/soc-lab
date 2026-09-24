@@ -78,6 +78,13 @@ def monitor_snapshot():
             "reasons": [],
             "snapshot_age_seconds": 1.0,
         },
+        "channels": {
+            "local": "READY",
+            "email": "DISABLED",
+            "telegram": "DISABLED",
+            "webhook": "READY",
+            "threema": "INERT",
+        },
     }
 
 
@@ -349,3 +356,113 @@ def test_renderer_exposes_no_write_methods():
         & forbidden
         == set()
     )
+
+
+def test_renderer_exposes_channel_panel():
+    renderer, output = make_renderer()
+
+    renderer.render(
+        monitor_snapshot()
+    )
+
+    rendered = output.getvalue()
+
+    assert "CHANNELS" in rendered
+
+    for channel in (
+        "LOCAL",
+        "EMAIL",
+        "TELEGRAM",
+        "WEBHOOK",
+        "THREEMA",
+    ):
+        assert channel in rendered
+
+
+def test_channel_status_values_are_visible():
+    renderer, output = make_renderer()
+
+    renderer.render(
+        monitor_snapshot()
+    )
+
+    rendered = output.getvalue()
+
+    assert "READY" in rendered
+    assert "DISABLED" in rendered
+    assert "INERT" in rendered
+
+
+def test_channel_semantic_styles():
+    renderer, _ = make_renderer()
+
+    assert (
+        renderer._channel_status_text(
+            "READY"
+        ).style
+        == "bold green"
+    )
+
+    assert (
+        renderer._channel_status_text(
+            "INERT"
+        ).style
+        == "bold yellow"
+    )
+
+    assert (
+        renderer._channel_status_text(
+            "DISABLED"
+        ).style
+        == "dim"
+    )
+
+    assert (
+        renderer._channel_status_text(
+            "UNKNOWN"
+        ).style
+        == "dim"
+    )
+
+
+def test_missing_channels_fail_read_only_safe():
+    renderer, output = make_renderer()
+
+    snapshot = (
+        monitor_snapshot()
+    )
+
+    snapshot.pop(
+        "channels"
+    )
+
+    renderer.render(
+        snapshot
+    )
+
+    rendered = output.getvalue()
+
+    assert "CHANNELS" in rendered
+
+    assert rendered.count(
+        "UNKNOWN"
+    ) >= 5
+
+
+def test_channel_color_is_not_only_signal():
+    renderer, output = make_renderer(
+        force_terminal=False
+    )
+
+    renderer.render(
+        monitor_snapshot()
+    )
+
+    rendered = output.getvalue()
+
+    for label in (
+        "READY",
+        "DISABLED",
+        "INERT",
+    ):
+        assert label in rendered

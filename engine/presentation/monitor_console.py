@@ -21,6 +21,13 @@ class MonitorConsoleRenderer:
         "CRITICAL": "bold white on red",
     }
 
+    CHANNEL_STYLES = {
+        "READY": "bold green",
+        "INERT": "bold yellow",
+        "DISABLED": "dim",
+        "UNKNOWN": "dim",
+    }
+
     def __init__(
         self,
         console=None,
@@ -50,6 +57,11 @@ class MonitorConsoleRenderer:
             {},
         )
 
+        channels = snapshot.get(
+            "channels",
+            {},
+        )
+
         self.console.print(
             self.build_header(
                 health
@@ -76,6 +88,12 @@ class MonitorConsoleRenderer:
                 self.build_incidents(
                     operator
                 ),
+            )
+        )
+
+        self.console.print(
+            self.build_channels(
+                channels
             )
         )
 
@@ -361,6 +379,55 @@ class MonitorConsoleRenderer:
             border_style="cyan",
         )
 
+    def build_channels(
+        self,
+        channels,
+    ):
+        table = Table.grid(
+            expand=True,
+            padding=(0, 1),
+        )
+
+        table.add_column(
+            style="cyan",
+            ratio=2,
+        )
+
+        table.add_column(
+            justify="right",
+            ratio=1,
+        )
+
+        ordered = (
+            "local",
+            "email",
+            "telegram",
+            "webhook",
+            "threema",
+        )
+
+        for channel in ordered:
+            status = self._channel_status(
+                channels.get(
+                    channel,
+                    "UNKNOWN",
+                )
+            )
+
+            table.add_row(
+                channel.upper(),
+                self._channel_status_text(
+                    status
+                ),
+            )
+
+        return Panel(
+            table,
+            title="CHANNELS",
+            title_align="left",
+            border_style="cyan",
+        )
+
     def _panel_pair(
         self,
         left,
@@ -450,6 +517,29 @@ class MonitorConsoleRenderer:
                 "white",
             ),
         )
+
+    def _channel_status_text(
+        self,
+        status,
+    ):
+        return Text(
+            status,
+            style=self.CHANNEL_STYLES.get(
+                status,
+                "dim",
+            ),
+        )
+
+    @staticmethod
+    def _channel_status(
+        value,
+    ):
+        if value is None:
+            return "UNKNOWN"
+
+        return str(
+            value
+        ).strip().upper()
 
     @staticmethod
     def _status(
