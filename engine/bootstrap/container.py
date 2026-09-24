@@ -15,6 +15,9 @@ from engine.services.monitor_snapshot import (
 from engine.telemetry.runtime_metrics_writer import (
     RuntimeMetricsWriter
 )
+from engine.telemetry.runtime_metrics_reader import (
+    RuntimeMetricsReader
+)
 
 
 class Container:
@@ -47,6 +50,12 @@ class Container:
             event_reader_checkpoint_file,
             detection_path,
             mitre_file
+        )
+
+        self.runtime_metrics_reader = (
+            RuntimeMetricsReader(
+                runtime_metrics_file
+            )
         )
 
         build_services(self)

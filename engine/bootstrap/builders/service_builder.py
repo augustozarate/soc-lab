@@ -149,6 +149,9 @@ from engine.services.monitor_snapshot import (
 from engine.presentation.operator_read_model import (
     OperatorReadModel
 )
+from engine.presentation.monitor_read_model import (
+    MonitorReadModel
+)
 from engine.presentation.operator_console import (
     OperatorConsoleRenderer
 )
@@ -640,6 +643,17 @@ def build_services(container):
             ),
             event_cache=(
                 container.event_cache
+            ),
+        )
+    )
+
+    container.monitor_read_model = (
+        MonitorReadModel(
+            operator_read_model=(
+                container.operator_read_model
+            ),
+            runtime_metrics_reader=(
+                container.runtime_metrics_reader
             ),
         )
     )
