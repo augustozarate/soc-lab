@@ -240,3 +240,37 @@ class IncidentRepository:
                 or 0
             ),
         }
+
+    def list_recent_summaries(
+        self,
+        limit=DEFAULT_QUERY_LIMIT,
+    ):
+        bounded_limit = self._bounded_limit(
+            limit
+        )
+
+        if bounded_limit == 0:
+            return []
+
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    id,
+                    severity
+                FROM incidents
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (
+                    bounded_limit,
+                ),
+            ).fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "severity": row["severity"],
+            }
+            for row in rows
+        ]
