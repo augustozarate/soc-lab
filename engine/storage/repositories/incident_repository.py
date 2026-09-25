@@ -3,6 +3,9 @@ import json
 
 class IncidentRepository:
 
+    DEFAULT_QUERY_LIMIT = 20
+    MAX_QUERY_LIMIT = 100
+
     def __init__(self, db):
         self.db = db
 
@@ -93,3 +96,107 @@ class IncidentRepository:
             json.loads(row["data_json"])
             for row in rows
         ]
+
+    def list_recent(
+        self,
+        limit=DEFAULT_QUERY_LIMIT,
+    ):
+        bounded_limit = self._bounded_limit(
+            limit
+        )
+
+        if bounded_limit == 0:
+            return []
+
+        with self.db.connect() as conn:
+
+            rows = conn.execute(
+                """
+                SELECT data_json
+                FROM incidents
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (
+                    bounded_limit,
+                ),
+            ).fetchall()
+
+        return [
+            json.loads(
+                row["data_json"]
+            )
+            for row in rows
+        ]
+
+    def list_recent_by_severity(
+        self,
+        severity,
+        limit=DEFAULT_QUERY_LIMIT,
+    ):
+        bounded_limit = self._bounded_limit(
+            limit
+        )
+
+        normalized_severity = (
+            ""
+            if severity is None
+            else str(
+                severity
+            ).strip().upper()
+        )
+
+        if (
+            bounded_limit == 0
+            or not normalized_severity
+        ):
+            return []
+
+        with self.db.connect() as conn:
+
+            rows = conn.execute(
+                """
+                SELECT data_json
+                FROM incidents
+                WHERE UPPER(severity) = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (
+                    normalized_severity,
+                    bounded_limit,
+                ),
+            ).fetchall()
+
+        return [
+            json.loads(
+                row["data_json"]
+            )
+            for row in rows
+        ]
+
+    @classmethod
+    def _bounded_limit(
+        cls,
+        limit,
+    ):
+        try:
+            normalized = int(
+                limit
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            normalized = (
+                cls.DEFAULT_QUERY_LIMIT
+            )
+
+        if normalized <= 0:
+            return 0
+
+        return min(
+            normalized,
+            cls.MAX_QUERY_LIMIT,
+        )
