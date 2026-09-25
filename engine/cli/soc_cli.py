@@ -69,6 +69,22 @@ COMMAND_TREE = {
     "group": {}
 }
 
+READ_ONLY_SHORTCUTS = {
+    "m": "monitor",
+    "h": "health",
+    "c": "channels",
+    "r": "incidents recent",
+    "1": (
+        "incidents recent "
+        "--severity CRITICAL"
+    ),
+    "2": (
+        "incidents recent "
+        "--severity HIGH"
+    ),
+}
+
+
 class SOCConsole:
 
     def __init__(
@@ -436,11 +452,32 @@ class SOCConsole:
 
         return enriched
 
+    @staticmethod
+    def expand_read_only_shortcut(
+        raw,
+    ):
+        normalized = str(
+            raw
+        ).strip()
+
+        return READ_ONLY_SHORTCUTS.get(
+            normalized,
+            normalized,
+        )
+
     def _execute_command(self, cmd):
         pipeline = [c.strip() for c in cmd.split("|")]
         data = None
 
         for i, stage in enumerate(pipeline):
+
+            if i == 0:
+                stage = (
+                    self.expand_read_only_shortcut(
+                        stage
+                    )
+                )
+
             parsed = self.parser.parse(stage)
 
             if not parsed:
@@ -494,6 +531,17 @@ class SOCConsole:
     📌 INCIDENTS
     incidents list
     incidents show <id>
+    incidents recent
+    incidents recent --limit <n>
+    incidents recent --severity <level>
+
+    📌 READ-ONLY SHORTCUTS
+    m  monitor
+    h  health
+    c  channels
+    r  incidents recent
+    1  critical incidents
+    2  high incidents
 
     📌 FILTERING / PIPELINE
     incidents list | util where severity=HIGH

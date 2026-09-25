@@ -421,3 +421,214 @@ def test_incidents_recent_forwards_combined_flags():
             "HIGH",
         )
     ]
+
+
+def test_read_only_shortcut_expansion_contract():
+    expected = {
+        "m": "monitor",
+        "h": "health",
+        "c": "channels",
+        "r": "incidents recent",
+        "1": (
+            "incidents recent "
+            "--severity CRITICAL"
+        ),
+        "2": (
+            "incidents recent "
+            "--severity HIGH"
+        ),
+    }
+
+    for shortcut, command in (
+        expected.items()
+    ):
+        assert (
+            SOCConsole
+            .expand_read_only_shortcut(
+                shortcut
+            )
+            == command
+        )
+
+
+def test_unknown_shortcut_is_unchanged():
+    assert (
+        SOCConsole
+        .expand_read_only_shortcut(
+            "incidents recent --limit 7"
+        )
+        == (
+            "incidents recent "
+            "--limit 7"
+        )
+    )
+
+
+def test_recent_shortcut_uses_existing_bounded_route(
+    capsys,
+):
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    console._execute_command(
+        "r"
+    )
+
+    assert controller.calls == [
+        (
+            20,
+            None,
+        )
+    ]
+
+    output = capsys.readouterr().out
+
+    assert "INC-001" in output
+
+
+def test_critical_shortcut_uses_existing_bounded_route(
+    capsys,
+):
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    console._execute_command(
+        "1"
+    )
+
+    assert controller.calls == [
+        (
+            20,
+            "CRITICAL",
+        )
+    ]
+
+    output = capsys.readouterr().out
+
+    assert "CRITICAL" in output
+
+
+def test_high_shortcut_uses_existing_bounded_route(
+    capsys,
+):
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    console._execute_command(
+        "2"
+    )
+
+    assert controller.calls == [
+        (
+            20,
+            "HIGH",
+        )
+    ]
+
+    output = capsys.readouterr().out
+
+    assert "HIGH" in output
+
+
+def test_shortcut_can_feed_existing_pipeline(
+    capsys,
+):
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    console._execute_command(
+        "1 | util head 1"
+    )
+
+    assert controller.calls == [
+        (
+            20,
+            "CRITICAL",
+        )
+    ]
+
+    output = capsys.readouterr().out
+
+    assert "INC-001" in output
+    assert "CRITICAL" in output
+
+
+def test_shortcut_expansion_is_first_stage_only():
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    stages = [
+        stage.strip()
+        for stage in (
+            "r | util head 1"
+        ).split("|")
+    ]
+
+    expanded = []
+
+    for index, stage in enumerate(
+        stages
+    ):
+        if index == 0:
+            stage = (
+                console
+                .expand_read_only_shortcut(
+                    stage
+                )
+            )
+
+        expanded.append(
+            stage
+        )
+
+    assert expanded == [
+        "incidents recent",
+        "util head 1",
+    ]
+
+    assert controller.calls == []
+
+
+def test_shortcut_targets_are_read_only():
+    from engine.cli.soc_cli import (
+        READ_ONLY_SHORTCUTS,
+    )
+
+    allowed_prefixes = (
+        "monitor",
+        "health",
+        "channels",
+        "incidents recent",
+    )
+
+    forbidden = (
+        "save",
+        "delete",
+        "remove",
+        "send",
+        "dispatch",
+        "block",
+        "release",
+        "acknowledge",
+        "enable",
+        "disable",
+    )
+
+    for target in (
+        READ_ONLY_SHORTCUTS.values()
+    ):
+        assert target.startswith(
+            allowed_prefixes
+        )
+
+        lowered = target.lower()
+
+        assert not any(
+            word in lowered
+            for word in forbidden
+        )
