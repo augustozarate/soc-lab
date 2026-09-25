@@ -152,6 +152,9 @@ from engine.presentation.operator_read_model import (
 from engine.presentation.monitor_read_model import (
     MonitorReadModel
 )
+from engine.presentation.incident_query_read_model import (
+    IncidentQueryReadModel
+)
 from engine.presentation.notification_channel_read_model import (
     NotificationChannelReadModel
 )
@@ -653,6 +656,14 @@ def build_services(container):
             event_cache=(
                 container.event_cache
             ),
+        )
+    )
+
+    container.incident_query_read_model = (
+        IncidentQueryReadModel(
+            incident_repository=(
+                container.incident_repository
+            )
         )
     )
 
