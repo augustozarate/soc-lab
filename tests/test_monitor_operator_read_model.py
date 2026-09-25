@@ -38,7 +38,7 @@ class FakeIncidentRepository:
             self.summary
         )
 
-    def list_recent(
+    def list_recent_summaries(
         self,
         limit,
     ):
@@ -47,9 +47,14 @@ class FakeIncidentRepository:
         )
 
         return [
-            dict(
-                incident
-            )
+            {
+                "id": incident.get(
+                    "id"
+                ),
+                "severity": incident.get(
+                    "severity"
+                ),
+            }
             for incident in (
                 self.incidents[:limit]
             )
@@ -382,3 +387,137 @@ def test_read_model_exposes_no_write_methods():
         public_methods
         & forbidden
     )
+
+
+def test_snapshot_incidents_are_minimized_to_renderer_fields():
+    model, _, _ = build_model(
+        incidents=[
+            {
+                "id": "INC-001",
+                "severity": "CRITICAL",
+                "ip": "192.0.2.10",
+                "username": "demo-user",
+                "internal_note": "PRIVATE",
+                "data_json": {
+                    "secret": "NOPE",
+                },
+            },
+        ]
+    )
+
+    snapshot = model.snapshot()
+
+    assert snapshot["incidents"] == [
+        {
+            "id": "INC-001",
+            "severity": "CRITICAL",
+        },
+    ]
+
+
+def test_snapshot_does_not_expose_unused_incident_fields():
+    model, _, _ = build_model(
+        incidents=[
+            {
+                "id": "INC-001",
+                "severity": "HIGH",
+                "ip": "203.0.113.50",
+                "username": "analyst-user",
+                "internal_note": "PRIVATE-NOTE",
+                "status": "OPEN",
+                "risk_score": 99,
+                "campaign_id": "CAMP-001",
+            },
+        ]
+    )
+
+    incident = (
+        model.snapshot()
+        ["incidents"][0]
+    )
+
+    assert set(
+        incident
+    ) == {
+        "id",
+        "severity",
+    }
+
+    serialized = repr(
+        incident
+    )
+
+    for forbidden in (
+        "203.0.113.50",
+        "analyst-user",
+        "PRIVATE-NOTE",
+        "OPEN",
+        "99",
+        "CAMP-001",
+    ):
+        assert forbidden not in serialized
+
+
+def test_model_never_calls_full_recent_incident_query():
+    class StrictIncidentRepository:
+
+        def summary_stats(self):
+            return {
+                "incidents": 1,
+                "high_critical": 1,
+            }
+
+        def list_recent_summaries(
+            self,
+            limit,
+        ):
+            return [
+                {
+                    "id": "INC-001",
+                    "severity": "CRITICAL",
+                },
+            ]
+
+        def list_recent(
+            self,
+            limit,
+        ):
+            raise AssertionError(
+                "full incident query reached"
+            )
+
+        def list_all(self):
+            raise AssertionError(
+                "unbounded incident query reached"
+            )
+
+    class CampaignRepository:
+
+        def summary_stats(self):
+            return {
+                "campaigns": 0,
+                "max_risk": 0.0,
+            }
+
+        def list_all(self):
+            raise AssertionError(
+                "unbounded campaign query reached"
+            )
+
+    model = MonitorOperatorReadModel(
+        incident_repository=(
+            StrictIncidentRepository()
+        ),
+        campaign_repository=(
+            CampaignRepository()
+        ),
+    )
+
+    snapshot = model.snapshot()
+
+    assert snapshot["incidents"] == [
+        {
+            "id": "INC-001",
+            "severity": "CRITICAL",
+        },
+    ]

@@ -39,7 +39,7 @@ class MonitorOperatorReadModel:
 
         incidents = (
             self.incident_repository
-            .list_recent(
+            .list_recent_summaries(
                 limit=bounded_limit
             )
         )
