@@ -26,19 +26,9 @@ class MonitorReadModel:
             notification_channel_read_model
         )
 
-    def snapshot(
+    def _runtime_views(
         self,
-        incident_limit=10,
     ):
-        operator = (
-            self.monitor_operator_read_model
-            .snapshot(
-                incident_limit=(
-                    incident_limit
-                )
-            )
-        )
-
         metrics_snapshot = (
             self.runtime_metrics_reader
             .read()
@@ -52,9 +42,64 @@ class MonitorReadModel:
             metrics_snapshot
         ).build()
 
+        return (
+            runtime,
+            health,
+        )
+
+    def health(
+        self,
+    ):
+        _, health = (
+            self._runtime_views()
+        )
+
+        return deepcopy(
+            health
+        )
+
+    def metrics(
+        self,
+    ):
+        runtime, _ = (
+            self._runtime_views()
+        )
+
+        return deepcopy(
+            runtime
+        )
+
+    def channels(
+        self,
+    ):
         channels = (
             self.notification_channel_read_model
             .snapshot()
+        )
+
+        return deepcopy(
+            channels
+        )
+
+    def snapshot(
+        self,
+        incident_limit=10,
+    ):
+        operator = (
+            self.monitor_operator_read_model
+            .snapshot(
+                incident_limit=(
+                    incident_limit
+                )
+            )
+        )
+
+        runtime, health = (
+            self._runtime_views()
+        )
+
+        channels = (
+            self.channels()
         )
 
         return {
@@ -67,7 +112,5 @@ class MonitorReadModel:
             "health": deepcopy(
                 health
             ),
-            "channels": deepcopy(
-                channels
-            ),
+            "channels": channels,
         }

@@ -810,3 +810,253 @@ def test_monitor_and_operator_read_models_are_isolated(
         .read_model
         is container.operator_read_model
     )
+
+
+def test_health_read_path_does_not_touch_operator_or_channels():
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise AssertionError(
+                "operator snapshot reached"
+            )
+
+    class MetricsReader:
+
+        def __init__(self):
+            self.calls = 0
+
+        def read(self):
+            self.calls += 1
+
+            return {
+                "uptime_seconds": 10,
+                "queue_depth": 0,
+                "checkpoint_lag_bytes": 0,
+                "task_latency_ms": 1,
+                "events_processed": 0,
+                "alerts_processed": 0,
+                "tasks_processed": 0,
+                "failures": 0,
+                "deduplicated": 0,
+            }
+
+    class Channels:
+
+        def snapshot(self):
+            raise AssertionError(
+                "channel snapshot reached"
+            )
+
+    reader = MetricsReader()
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=reader,
+        notification_channel_read_model=(
+            Channels()
+        ),
+    )
+
+    result = model.health()
+
+    assert reader.calls == 1
+
+    assert isinstance(
+        result,
+        dict,
+    )
+
+    assert "status" in result
+
+
+def test_metrics_read_path_does_not_touch_operator_or_channels():
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise AssertionError(
+                "operator snapshot reached"
+            )
+
+    class MetricsReader:
+
+        def __init__(self):
+            self.calls = 0
+
+        def read(self):
+            self.calls += 1
+
+            return {
+                "generated_at": (
+                    "2026-09-25T12:00:00+00:00"
+                ),
+                "uptime_seconds": 42,
+                "counters": {
+                    "events_read_total": 6,
+                    "alerts_generated_total": 7,
+                    "tasks_completed_total": 8,
+                    "task_attempt_failures_total": 0,
+                    "tasks_deduplicated_total": 9,
+                },
+                "gauges": {
+                    "queue_depth": 3,
+                    "checkpoint_lag_bytes": 4,
+                },
+                "observations": {
+                    "task_latency_seconds": {
+                        "avg": 0.005,
+                    },
+                },
+            }
+
+    class Channels:
+
+        def snapshot(self):
+            raise AssertionError(
+                "channel snapshot reached"
+            )
+
+    reader = MetricsReader()
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=reader,
+        notification_channel_read_model=(
+            Channels()
+        ),
+    )
+
+    result = model.metrics()
+
+    assert reader.calls == 1
+
+    assert isinstance(
+        result,
+        dict,
+    )
+
+    assert (
+        result.get(
+            "queue_depth"
+        )
+        == 3
+    )
+
+
+def test_channels_read_path_does_not_touch_operator_or_runtime():
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise AssertionError(
+                "operator snapshot reached"
+            )
+
+    class MetricsReader:
+
+        def read(self):
+            raise AssertionError(
+                "runtime metrics reached"
+            )
+
+    class Channels:
+
+        def __init__(self):
+            self.calls = 0
+
+        def snapshot(self):
+            self.calls += 1
+
+            return {
+                "local": "READY",
+            }
+
+    channels = Channels()
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=(
+            MetricsReader()
+        ),
+        notification_channel_read_model=(
+            channels
+        ),
+    )
+
+    result = model.channels()
+
+    assert channels.calls == 1
+
+    assert result == {
+        "local": "READY",
+    }
+
+
+def test_selective_read_results_are_detached():
+    source = {
+        "local": "READY",
+    }
+
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            return {
+                "summary": {},
+                "incidents": [],
+            }
+
+    class MetricsReader:
+
+        def read(self):
+            return {
+                "uptime_seconds": 0,
+                "queue_depth": 0,
+                "checkpoint_lag_bytes": 0,
+                "task_latency_ms": None,
+                "events_processed": 0,
+                "alerts_processed": 0,
+                "tasks_processed": 0,
+                "failures": 0,
+                "deduplicated": 0,
+            }
+
+    class Channels:
+
+        def snapshot(self):
+            return source
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=(
+            MetricsReader()
+        ),
+        notification_channel_read_model=(
+            Channels()
+        ),
+    )
+
+    result = model.channels()
+
+    result["local"] = "MUTATED"
+
+    assert source == {
+        "local": "READY",
+    }

@@ -299,6 +299,37 @@ class QueryReadModel:
         return self.source
 
 
+    def health(self):
+        self.calls.append(
+            10
+        )
+
+        return self.source.get(
+            "health",
+            {},
+        )
+
+    def channels(self):
+        self.calls.append(
+            10
+        )
+
+        return self.source.get(
+            "channels",
+            {},
+        )
+
+    def metrics(self):
+        self.calls.append(
+            10
+        )
+
+        return self.source.get(
+            "runtime",
+            {},
+        )
+
+
 def make_query_controller():
     read_model = QueryReadModel()
 
@@ -520,3 +551,47 @@ def test_query_incidents_requires_query_model():
         raise AssertionError(
             "RuntimeError was not raised"
         )
+
+
+def test_selective_controller_queries_never_use_full_snapshot():
+    class SelectiveReadModel:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise AssertionError(
+                "full snapshot reached"
+            )
+
+        def health(self):
+            return {
+                "status": "HEALTHY",
+            }
+
+        def channels(self):
+            return {
+                "local": "READY",
+            }
+
+        def metrics(self):
+            return {
+                "queue_depth": 2,
+            }
+
+    controller = MonitorConsoleController(
+        read_model=SelectiveReadModel(),
+        renderer=object(),
+    )
+
+    assert controller.query_health() == {
+        "status": "HEALTHY",
+    }
+
+    assert controller.query_channels() == {
+        "local": "READY",
+    }
+
+    assert controller.query_metrics() == {
+        "queue_depth": 2,
+    }

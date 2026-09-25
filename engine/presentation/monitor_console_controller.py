@@ -31,47 +31,23 @@ class MonitorConsoleController:
 
     def query_health(
         self,
-        incident_limit=10,
     ):
-        snapshot = self.read_model.snapshot(
-            incident_limit=incident_limit
-        )
-
         return deepcopy(
-            snapshot.get(
-                "health",
-                {},
-            )
+            self.read_model.health()
         )
 
     def query_channels(
         self,
-        incident_limit=10,
     ):
-        snapshot = self.read_model.snapshot(
-            incident_limit=incident_limit
-        )
-
         return deepcopy(
-            snapshot.get(
-                "channels",
-                {},
-            )
+            self.read_model.channels()
         )
 
     def query_metrics(
         self,
-        incident_limit=10,
     ):
-        snapshot = self.read_model.snapshot(
-            incident_limit=incident_limit
-        )
-
         return deepcopy(
-            snapshot.get(
-                "runtime",
-                {},
-            )
+            self.read_model.metrics()
         )
 
     def query_incidents(
