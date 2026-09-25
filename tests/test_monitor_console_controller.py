@@ -385,3 +385,143 @@ def test_query_results_are_detached():
         ]["email"]
         == "DISABLED"
     )
+
+
+class IncidentQueryReadModelStub:
+
+    def __init__(self):
+        self.calls = []
+
+    def recent(
+        self,
+        limit=20,
+        severity=None,
+    ):
+        self.calls.append(
+            (
+                limit,
+                severity,
+            )
+        )
+
+        return [
+            {
+                "id": "INC-003",
+                "severity": (
+                    severity
+                    or "CRITICAL"
+                ),
+            }
+        ]
+
+
+def make_incident_query_controller():
+    incident_query = (
+        IncidentQueryReadModelStub()
+    )
+
+    controller = MonitorConsoleController(
+        read_model=QueryReadModel(),
+        renderer=object(),
+        incident_query_read_model=(
+            incident_query
+        ),
+    )
+
+    return (
+        controller,
+        incident_query,
+    )
+
+
+def test_query_incidents_delegates_to_bounded_read_model():
+    controller, query_model = (
+        make_incident_query_controller()
+    )
+
+    result = (
+        controller.query_incidents(
+            limit=10,
+            severity="HIGH",
+        )
+    )
+
+    assert query_model.calls == [
+        (
+            10,
+            "HIGH",
+        )
+    ]
+
+    assert result == [
+        {
+            "id": "INC-003",
+            "severity": "HIGH",
+        }
+    ]
+
+
+def test_query_incidents_uses_safe_defaults():
+    controller, query_model = (
+        make_incident_query_controller()
+    )
+
+    controller.query_incidents()
+
+    assert query_model.calls == [
+        (
+            20,
+            None,
+        )
+    ]
+
+
+def test_query_incidents_result_is_detached():
+    controller, query_model = (
+        make_incident_query_controller()
+    )
+
+    result = (
+        controller.query_incidents()
+    )
+
+    result[0][
+        "severity"
+    ] = "LOW"
+
+    fresh = (
+        controller.query_incidents()
+    )
+
+    assert (
+        fresh[0]["severity"]
+        == "CRITICAL"
+    )
+
+    assert len(
+        query_model.calls
+    ) == 2
+
+
+def test_query_incidents_requires_query_model():
+    controller = MonitorConsoleController(
+        read_model=QueryReadModel(),
+        renderer=object(),
+    )
+
+    try:
+        controller.query_incidents()
+
+    except RuntimeError as error:
+        assert (
+            str(error)
+            == (
+                "Incident query surface "
+                "is unavailable"
+            )
+        )
+
+    else:
+        raise AssertionError(
+            "RuntimeError was not raised"
+        )

@@ -265,3 +265,159 @@ def test_metrics_command_delegates_to_monitor_controller():
     assert controller.metric_calls == 1
 
     assert result["queue_depth"] == 2
+
+
+class IncidentQueryMonitorControllerStub:
+
+    def __init__(self):
+        self.calls = []
+
+    def query_incidents(
+        self,
+        limit=20,
+        severity=None,
+    ):
+        self.calls.append(
+            (
+                limit,
+                severity,
+            )
+        )
+
+        return [
+            {
+                "id": "INC-001",
+                "severity": (
+                    severity
+                    or "HIGH"
+                ),
+            }
+        ]
+
+
+def make_incident_query_console():
+    controller = (
+        IncidentQueryMonitorControllerStub()
+    )
+
+    console = SOCConsole(
+        incident_manager=(
+            IncidentManagerStub()
+        ),
+        case_manager=(
+            CaseManagerStub()
+        ),
+        monitor_console_controller=(
+            controller
+        ),
+    )
+
+    return (
+        console,
+        controller,
+    )
+
+
+def test_incidents_recent_command_is_registered():
+    console, _ = (
+        make_incident_query_console()
+    )
+
+    assert (
+        console.routes[
+            (
+                "incidents",
+                "recent",
+            )
+        ]
+        == console.show_recent_incidents
+    )
+
+
+def test_incidents_recent_uses_defaults():
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    result = (
+        console.show_recent_incidents(
+            args=[],
+            flags={},
+            input_data=None,
+        )
+    )
+
+    assert controller.calls == [
+        (
+            20,
+            None,
+        )
+    ]
+
+    assert result[0]["id"] == (
+        "INC-001"
+    )
+
+
+def test_incidents_recent_forwards_limit():
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    console.show_recent_incidents(
+        args=[],
+        flags={
+            "limit": "7",
+        },
+        input_data=None,
+    )
+
+    assert controller.calls == [
+        (
+            "7",
+            None,
+        )
+    ]
+
+
+def test_incidents_recent_forwards_severity():
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    console.show_recent_incidents(
+        args=[],
+        flags={
+            "severity": "critical",
+        },
+        input_data=None,
+    )
+
+    assert controller.calls == [
+        (
+            20,
+            "critical",
+        )
+    ]
+
+
+def test_incidents_recent_forwards_combined_flags():
+    console, controller = (
+        make_incident_query_console()
+    )
+
+    console.show_recent_incidents(
+        args=[],
+        flags={
+            "severity": "HIGH",
+            "limit": "10",
+        },
+        input_data=None,
+    )
+
+    assert controller.calls == [
+        (
+            "10",
+            "HIGH",
+        )
+    ]

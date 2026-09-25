@@ -7,9 +7,13 @@ class MonitorConsoleController:
         self,
         read_model,
         renderer,
+        incident_query_read_model=None,
     ):
         self.read_model = read_model
         self.renderer = renderer
+        self.incident_query_read_model = (
+            incident_query_read_model
+        )
 
     def render(
         self,
@@ -67,5 +71,27 @@ class MonitorConsoleController:
             snapshot.get(
                 "runtime",
                 {},
+            )
+        )
+
+    def query_incidents(
+        self,
+        limit=20,
+        severity=None,
+    ):
+        if (
+            self.incident_query_read_model
+            is None
+        ):
+            raise RuntimeError(
+                "Incident query surface "
+                "is unavailable"
+            )
+
+        return deepcopy(
+            self.incident_query_read_model
+            .recent(
+                limit=limit,
+                severity=severity,
             )
         )

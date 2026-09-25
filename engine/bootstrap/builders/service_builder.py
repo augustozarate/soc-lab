@@ -736,5 +736,8 @@ def build_services(container):
             renderer=(
                 container.monitor_console_renderer
             ),
+            incident_query_read_model=(
+                container.incident_query_read_model
+            ),
         )
     )

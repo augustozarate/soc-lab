@@ -23,7 +23,8 @@ COMMAND_TREE = {
     "incidents": {
         "list": {},
         "show": {},
-        "search": {}
+        "search": {},
+        "recent": {}
     },
 
     "case": {
@@ -100,6 +101,7 @@ class SOCConsole:
             ("incidents", "list"): self.cmd_incidents_list,
             ("incidents", "search"): self.search_incidents,
             ("incidents", "show"): self.show_incident,
+            ("incidents", "recent"): self.show_recent_incidents,
 
             # CAMPAIGNS
             ("campaign", None): self.list_campaigns,
@@ -546,6 +548,36 @@ class SOCConsole:
 
     def list_incidents(self, args=None, flags=None, input_data=None):
         return list(self.im.incidents.values())
+
+    def show_recent_incidents(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if self.monitor_console_controller is None:
+            raise RuntimeError(
+                "Monitor Console is unavailable"
+            )
+
+        flags = flags or {}
+
+        limit = flags.get(
+            "limit",
+            20,
+        )
+
+        severity = flags.get(
+            "severity"
+        )
+
+        return (
+            self.monitor_console_controller
+            .query_incidents(
+                limit=limit,
+                severity=severity,
+            )
+        )
 
     def cmd_incidents_list(self, args, flags, data):
         incidents = list(self.im.incidents.values())
