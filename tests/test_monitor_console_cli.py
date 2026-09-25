@@ -142,3 +142,126 @@ def test_operator_command_remains_registered():
         ("operator", None)
         in console.routes
     )
+
+
+class QueryMonitorControllerStub:
+
+    def __init__(self):
+        self.health_calls = 0
+        self.channel_calls = 0
+        self.metric_calls = 0
+
+    def query_health(self):
+        self.health_calls += 1
+
+        return {
+            "status": "HEALTHY",
+        }
+
+    def query_channels(self):
+        self.channel_calls += 1
+
+        return {
+            "local": "READY",
+            "email": "DISABLED",
+        }
+
+    def query_metrics(self):
+        self.metric_calls += 1
+
+        return {
+            "uptime": "00:10:00",
+            "queue_depth": 2,
+        }
+
+
+def make_query_console():
+    controller = (
+        QueryMonitorControllerStub()
+    )
+
+    console = SOCConsole(
+        incident_manager=(
+            IncidentManagerStub()
+        ),
+        case_manager=(
+            CaseManagerStub()
+        ),
+        monitor_console_controller=(
+            controller
+        ),
+    )
+
+    return (
+        console,
+        controller,
+    )
+
+
+def test_read_only_query_commands_are_registered():
+    console, _ = make_query_console()
+
+    assert (
+        console.routes[
+            ("health", None)
+        ]
+        == console.show_monitor_health
+    )
+
+    assert (
+        console.routes[
+            ("channels", None)
+        ]
+        == console.show_monitor_channels
+    )
+
+    assert (
+        console.routes[
+            ("metrics", None)
+        ]
+        == console.show_monitor_metrics
+    )
+
+
+def test_health_command_delegates_to_monitor_controller():
+    console, controller = (
+        make_query_console()
+    )
+
+    result = (
+        console.show_monitor_health()
+    )
+
+    assert controller.health_calls == 1
+
+    assert result == {
+        "status": "HEALTHY",
+    }
+
+
+def test_channels_command_delegates_to_monitor_controller():
+    console, controller = (
+        make_query_console()
+    )
+
+    result = (
+        console.show_monitor_channels()
+    )
+
+    assert controller.channel_calls == 1
+
+    assert result["local"] == "READY"
+
+
+def test_metrics_command_delegates_to_monitor_controller():
+    console, controller = (
+        make_query_console()
+    )
+
+    result = (
+        console.show_monitor_metrics()
+    )
+
+    assert controller.metric_calls == 1
+
+    assert result["queue_depth"] == 2

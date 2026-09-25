@@ -265,3 +265,123 @@ def test_service_builder_constructs_monitor_console(
         .renderer
         is container.monitor_console_renderer
     )
+
+
+class QueryReadModel:
+
+    def __init__(self):
+        self.calls = []
+
+        self.source = {
+            "operator": {},
+            "runtime": {
+                "uptime": "00:10:00",
+                "queue_depth": 2,
+                "events_read": 120,
+            },
+            "health": {
+                "status": "HEALTHY",
+                "reasons": [],
+                "snapshot_age_seconds": 1.0,
+            },
+            "channels": {
+                "local": "READY",
+                "email": "DISABLED",
+                "telegram": "DISABLED",
+                "webhook": "READY",
+                "threema": "INERT",
+            },
+        }
+
+    def snapshot(
+        self,
+        recent_event_limit=10,
+    ):
+        self.calls.append(
+            recent_event_limit
+        )
+
+        return self.source
+
+
+def make_query_controller():
+    read_model = QueryReadModel()
+
+    controller = MonitorConsoleController(
+        read_model=read_model,
+        renderer=object(),
+    )
+
+    return (
+        controller,
+        read_model,
+    )
+
+
+def test_query_health_returns_health_view():
+    controller, read_model = (
+        make_query_controller()
+    )
+
+    result = controller.query_health()
+
+    assert read_model.calls == [10]
+
+    assert result == {
+        "status": "HEALTHY",
+        "reasons": [],
+        "snapshot_age_seconds": 1.0,
+    }
+
+
+def test_query_channels_returns_channel_view():
+    controller, read_model = (
+        make_query_controller()
+    )
+
+    result = controller.query_channels()
+
+    assert read_model.calls == [10]
+
+    assert result == {
+        "local": "READY",
+        "email": "DISABLED",
+        "telegram": "DISABLED",
+        "webhook": "READY",
+        "threema": "INERT",
+    }
+
+
+def test_query_metrics_returns_runtime_view():
+    controller, read_model = (
+        make_query_controller()
+    )
+
+    result = controller.query_metrics()
+
+    assert read_model.calls == [10]
+
+    assert result == {
+        "uptime": "00:10:00",
+        "queue_depth": 2,
+        "events_read": 120,
+    }
+
+
+def test_query_results_are_detached():
+    controller, read_model = (
+        make_query_controller()
+    )
+
+    channels = (
+        controller.query_channels()
+    )
+
+    channels["email"] = "READY"
+
+    assert (
+        read_model.source[
+            "channels"
+        ]["email"]
+        == "DISABLED"
+    )

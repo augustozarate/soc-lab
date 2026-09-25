@@ -16,6 +16,9 @@ COMMAND_TREE = {
 
     "operator": {},
     "monitor": {},
+    "health": {},
+    "channels": {},
+    "metrics": {},
 
     "incidents": {
         "list": {},
@@ -84,6 +87,9 @@ class SOCConsole:
             ("help", None): self.help,
             ("operator", None): self.show_operator_console,
             ("monitor", None): self.show_monitor_console,
+            ("health", None): self.show_monitor_health,
+            ("channels", None): self.show_monitor_channels,
+            ("metrics", None): self.show_monitor_metrics,
             ("case", None): self.list_cases,        # opcional
             ("ai", None): self.ai_help,             # opcional
             ("util", None): self.util_help,         # opcional
@@ -180,6 +186,54 @@ class SOCConsole:
         return (
             self.monitor_console_controller
             .render()
+        )
+
+    def show_monitor_health(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if self.monitor_console_controller is None:
+            raise RuntimeError(
+                "Monitor Console is unavailable"
+            )
+
+        return (
+            self.monitor_console_controller
+            .query_health()
+        )
+
+    def show_monitor_channels(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if self.monitor_console_controller is None:
+            raise RuntimeError(
+                "Monitor Console is unavailable"
+            )
+
+        return (
+            self.monitor_console_controller
+            .query_channels()
+        )
+
+    def show_monitor_metrics(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if self.monitor_console_controller is None:
+            raise RuntimeError(
+                "Monitor Console is unavailable"
+            )
+
+        return (
+            self.monitor_console_controller
+            .query_metrics()
         )
 
     # =========================
