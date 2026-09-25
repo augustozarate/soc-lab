@@ -200,3 +200,43 @@ class IncidentRepository:
             normalized,
             cls.MAX_QUERY_LIMIT,
         )
+
+    def summary_stats(self):
+
+        with self.db.connect() as conn:
+
+            row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS incidents,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN UPPER(severity)
+                                    IN ('HIGH', 'CRITICAL')
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS high_critical
+                FROM incidents
+                """
+            ).fetchone()
+
+        if not row:
+            return {
+                "incidents": 0,
+                "high_critical": 0,
+            }
+
+        return {
+            "incidents": int(
+                row["incidents"]
+                or 0
+            ),
+            "high_critical": int(
+                row["high_critical"]
+                or 0
+            ),
+        }

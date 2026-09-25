@@ -84,3 +84,40 @@ class CampaignRepository:
             json.loads(row["data_json"])
             for row in rows
         ]
+
+    def summary_stats(self):
+
+        with self.db.connect() as conn:
+
+            row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS campaigns,
+                    COALESCE(
+                        MAX(
+                            CAST(
+                                risk AS REAL
+                            )
+                        ),
+                        0
+                    ) AS max_risk
+                FROM campaigns
+                """
+            ).fetchone()
+
+        if not row:
+            return {
+                "campaigns": 0,
+                "max_risk": 0.0,
+            }
+
+        return {
+            "campaigns": int(
+                row["campaigns"]
+                or 0
+            ),
+            "max_risk": float(
+                row["max_risk"]
+                or 0
+            ),
+        }
