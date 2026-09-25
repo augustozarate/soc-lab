@@ -5,7 +5,7 @@ from engine.presentation.monitor_read_model import (
 )
 
 
-class FakeOperatorReadModel:
+class FakeMonitorOperatorReadModel:
 
     def __init__(self):
         self.calls = []
@@ -43,10 +43,10 @@ class FakeOperatorReadModel:
 
     def snapshot(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         self.calls.append(
-            recent_event_limit
+            incident_limit
         )
 
         return deepcopy(
@@ -123,7 +123,7 @@ def runtime_snapshot():
 def build_model(
     metrics=None,
 ):
-    operator = FakeOperatorReadModel()
+    operator = FakeMonitorOperatorReadModel()
 
     reader = FakeRuntimeMetricsReader(
         runtime_snapshot()
@@ -137,7 +137,7 @@ def build_model(
 
     return (
         MonitorReadModel(
-            operator_read_model=operator,
+            monitor_operator_read_model=operator,
             runtime_metrics_reader=reader,
             notification_channel_read_model=(
                 channels
@@ -166,7 +166,7 @@ def test_operator_snapshot_is_forwarded():
     model, operator, _, _ = build_model()
 
     snapshot = model.snapshot(
-        recent_event_limit=4
+        incident_limit=4
     )
 
     assert operator.calls == [4]
@@ -227,7 +227,7 @@ def test_healthy_runtime_is_assessed():
 
 
 def test_missing_metrics_fail_read_only_safe():
-    operator = FakeOperatorReadModel()
+    operator = FakeMonitorOperatorReadModel()
 
     reader = FakeRuntimeMetricsReader(
         None
@@ -238,7 +238,7 @@ def test_missing_metrics_fail_read_only_safe():
     )
 
     model = MonitorReadModel(
-        operator_read_model=operator,
+        monitor_operator_read_model=operator,
         runtime_metrics_reader=reader,
         notification_channel_read_model=(
             channels
@@ -391,8 +391,8 @@ def test_service_builder_constructs_monitor_read_model(
 
     assert (
         container.monitor_read_model
-        .operator_read_model
-        is container.operator_read_model
+        .monitor_operator_read_model
+        is container.monitor_operator_read_model
     )
 
     assert (
@@ -507,7 +507,7 @@ def test_channel_snapshot_is_detached_from_source():
         "threema": "INERT",
     }
 
-    operator = FakeOperatorReadModel()
+    operator = FakeMonitorOperatorReadModel()
 
     reader = FakeRuntimeMetricsReader(
         {
@@ -528,7 +528,7 @@ def test_channel_snapshot_is_detached_from_source():
     )
 
     model = MonitorReadModel(
-        operator_read_model=operator,
+        monitor_operator_read_model=operator,
         runtime_metrics_reader=reader,
         notification_channel_read_model=(
             channels
@@ -557,4 +557,256 @@ def test_channels_are_bounded_to_expected_surface():
         "telegram",
         "webhook",
         "threema",
+    )
+
+
+def test_service_builder_constructs_bounded_monitor_operator_model(
+    tmp_path,
+):
+    from engine.bootstrap.container import (
+        Container,
+    )
+    from engine.presentation.monitor_operator_read_model import (
+        MonitorOperatorReadModel,
+    )
+
+    root = tmp_path
+
+    logs = root / "logs"
+    data = root / "data"
+    detections = root / "detections"
+    mitre = root / "mitre"
+
+    logs.mkdir()
+    data.mkdir()
+    detections.mkdir()
+    mitre.mkdir()
+
+    stream_file = (
+        logs / "stream.jsonl"
+    )
+    stream_file.write_text("")
+
+    mitre_file = (
+        mitre / "attack_mapping.yml"
+    )
+    mitre_file.write_text(
+        "{}\n"
+    )
+
+    container = Container(
+        stream_file=str(
+            stream_file
+        ),
+        detection_path=str(
+            detections
+        ),
+        mitre_file=str(
+            mitre_file
+        ),
+        dlq_file=str(
+            logs / "dead_letter.jsonl"
+        ),
+        db_file=str(
+            data / "soc.db"
+        ),
+        event_cache=[],
+        monitor_snapshot_file=str(
+            logs / "monitor_snapshot.json"
+        ),
+        runtime_metrics_file=str(
+            logs / "runtime_metrics.json"
+        ),
+        event_reader_checkpoint_file=str(
+            data / "event_reader_checkpoint.json"
+        ),
+    )
+
+    assert isinstance(
+        container.monitor_operator_read_model,
+        MonitorOperatorReadModel,
+    )
+
+    assert (
+        container.monitor_read_model
+        .monitor_operator_read_model
+        is container.monitor_operator_read_model
+    )
+
+    assert (
+        container.operator_console_controller
+        .read_model
+        is container.operator_read_model
+    )
+
+
+def test_container_monitor_snapshot_does_not_use_legacy_list_all(
+    tmp_path,
+):
+    from engine.bootstrap.container import (
+        Container,
+    )
+
+    root = tmp_path
+
+    logs = root / "logs"
+    data = root / "data"
+    detections = root / "detections"
+    mitre = root / "mitre"
+
+    logs.mkdir()
+    data.mkdir()
+    detections.mkdir()
+    mitre.mkdir()
+
+    stream_file = (
+        logs / "stream.jsonl"
+    )
+    stream_file.write_text("")
+
+    mitre_file = (
+        mitre / "attack_mapping.yml"
+    )
+    mitre_file.write_text(
+        "{}\n"
+    )
+
+    container = Container(
+        stream_file=str(
+            stream_file
+        ),
+        detection_path=str(
+            detections
+        ),
+        mitre_file=str(
+            mitre_file
+        ),
+        dlq_file=str(
+            logs / "dead_letter.jsonl"
+        ),
+        db_file=str(
+            data / "soc.db"
+        ),
+        event_cache=[],
+        monitor_snapshot_file=str(
+            logs / "monitor_snapshot.json"
+        ),
+        runtime_metrics_file=str(
+            logs / "runtime_metrics.json"
+        ),
+        event_reader_checkpoint_file=str(
+            data / "event_reader_checkpoint.json"
+        ),
+    )
+
+    def fail_list_all():
+        raise AssertionError(
+            "legacy list_all path used"
+        )
+
+    container.incident_repository.list_all = (
+        fail_list_all
+    )
+
+    container.campaign_repository.list_all = (
+        fail_list_all
+    )
+
+    snapshot = (
+        container.monitor_read_model
+        .snapshot(
+            incident_limit=5
+        )
+    )
+
+    assert (
+        snapshot["operator"]["summary"]
+        == {
+            "incidents": 0,
+            "high_critical": 0,
+            "campaigns": 0,
+            "max_risk": 0.0,
+        }
+    )
+
+    assert (
+        snapshot["operator"]["incidents"]
+        == []
+    )
+
+
+def test_monitor_and_operator_read_models_are_isolated(
+    tmp_path,
+):
+    from engine.bootstrap.container import (
+        Container,
+    )
+
+    root = tmp_path
+
+    logs = root / "logs"
+    data = root / "data"
+    detections = root / "detections"
+    mitre = root / "mitre"
+
+    logs.mkdir()
+    data.mkdir()
+    detections.mkdir()
+    mitre.mkdir()
+
+    stream_file = (
+        logs / "stream.jsonl"
+    )
+    stream_file.write_text("")
+
+    mitre_file = (
+        mitre / "attack_mapping.yml"
+    )
+    mitre_file.write_text(
+        "{}\n"
+    )
+
+    container = Container(
+        stream_file=str(
+            stream_file
+        ),
+        detection_path=str(
+            detections
+        ),
+        mitre_file=str(
+            mitre_file
+        ),
+        dlq_file=str(
+            logs / "dead_letter.jsonl"
+        ),
+        db_file=str(
+            data / "soc.db"
+        ),
+        event_cache=[],
+        monitor_snapshot_file=str(
+            logs / "monitor_snapshot.json"
+        ),
+        runtime_metrics_file=str(
+            logs / "runtime_metrics.json"
+        ),
+        event_reader_checkpoint_file=str(
+            data / "event_reader_checkpoint.json"
+        ),
+    )
+
+    assert (
+        container.monitor_operator_read_model
+        is not container.operator_read_model
+    )
+
+    assert (
+        container.monitor_console_controller
+        .read_model
+        is container.monitor_read_model
+    )
+
+    assert (
+        container.operator_console_controller
+        .read_model
+        is container.operator_read_model
     )

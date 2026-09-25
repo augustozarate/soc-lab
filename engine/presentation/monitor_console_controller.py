@@ -17,10 +17,10 @@ class MonitorConsoleController:
 
     def render(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         snapshot = self.read_model.snapshot(
-            recent_event_limit=recent_event_limit
+            incident_limit=incident_limit
         )
 
         self.renderer.render(
@@ -31,10 +31,10 @@ class MonitorConsoleController:
 
     def query_health(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         snapshot = self.read_model.snapshot(
-            recent_event_limit=recent_event_limit
+            incident_limit=incident_limit
         )
 
         return deepcopy(
@@ -46,10 +46,10 @@ class MonitorConsoleController:
 
     def query_channels(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         snapshot = self.read_model.snapshot(
-            recent_event_limit=recent_event_limit
+            incident_limit=incident_limit
         )
 
         return deepcopy(
@@ -61,10 +61,10 @@ class MonitorConsoleController:
 
     def query_metrics(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         snapshot = self.read_model.snapshot(
-            recent_event_limit=recent_event_limit
+            incident_limit=incident_limit
         )
 
         return deepcopy(

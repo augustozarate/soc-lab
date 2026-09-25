@@ -152,6 +152,9 @@ from engine.presentation.operator_read_model import (
 from engine.presentation.monitor_read_model import (
     MonitorReadModel
 )
+from engine.presentation.monitor_operator_read_model import (
+    MonitorOperatorReadModel
+)
 from engine.presentation.incident_query_read_model import (
     IncidentQueryReadModel
 )
@@ -659,6 +662,17 @@ def build_services(container):
         )
     )
 
+    container.monitor_operator_read_model = (
+        MonitorOperatorReadModel(
+            incident_repository=(
+                container.incident_repository
+            ),
+            campaign_repository=(
+                container.campaign_repository
+            ),
+        )
+    )
+
     container.incident_query_read_model = (
         IncidentQueryReadModel(
             incident_repository=(
@@ -697,8 +711,8 @@ def build_services(container):
 
     container.monitor_read_model = (
         MonitorReadModel(
-            operator_read_model=(
-                container.operator_read_model
+            monitor_operator_read_model=(
+                container.monitor_operator_read_model
             ),
             runtime_metrics_reader=(
                 container.runtime_metrics_reader

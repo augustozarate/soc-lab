@@ -10,10 +10,10 @@ class FakeReadModel:
 
     def snapshot(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         self.calls.append(
-            recent_event_limit
+            incident_limit
         )
 
         return {
@@ -96,7 +96,7 @@ def test_controller_reads_and_renders_snapshot():
     )
 
 
-def test_controller_forwards_recent_event_limit():
+def test_controller_forwards_incident_limit():
     (
         controller,
         read_model,
@@ -104,7 +104,7 @@ def test_controller_forwards_recent_event_limit():
     ) = make_controller()
 
     controller.render(
-        recent_event_limit=4
+        incident_limit=4
     )
 
     assert read_model.calls == [4]
@@ -295,10 +295,10 @@ class QueryReadModel:
 
     def snapshot(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         self.calls.append(
-            recent_event_limit
+            incident_limit
         )
 
         return self.source

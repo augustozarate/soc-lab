@@ -12,12 +12,12 @@ class MonitorReadModel:
 
     def __init__(
         self,
-        operator_read_model,
+        monitor_operator_read_model,
         runtime_metrics_reader,
         notification_channel_read_model,
     ):
-        self.operator_read_model = (
-            operator_read_model
+        self.monitor_operator_read_model = (
+            monitor_operator_read_model
         )
         self.runtime_metrics_reader = (
             runtime_metrics_reader
@@ -28,13 +28,13 @@ class MonitorReadModel:
 
     def snapshot(
         self,
-        recent_event_limit=10,
+        incident_limit=10,
     ):
         operator = (
-            self.operator_read_model
+            self.monitor_operator_read_model
             .snapshot(
-                recent_event_limit=(
-                    recent_event_limit
+                incident_limit=(
+                    incident_limit
                 )
             )
         )
