@@ -632,3 +632,103 @@ def test_shortcut_targets_are_read_only():
             word in lowered
             for word in forbidden
         )
+
+
+def test_monitor_command_does_not_print_raw_snapshot(
+    capsys,
+):
+    from engine.cli.command_parser import (
+        CommandParser,
+    )
+    from engine.cli.soc_cli import (
+        COMMAND_TREE,
+        SOCConsole,
+    )
+    from engine.presentation.monitor_console_controller import (
+        MonitorConsoleController,
+    )
+
+    class ReadModel:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            return {
+                "operator": {
+                    "summary": {},
+                    "incidents": [
+                        {
+                            "id": "INC-001",
+                            "severity": "CRITICAL",
+                            "internal_note": (
+                                "SHOULD_NOT_PRINT_RAW"
+                            ),
+                        },
+                    ],
+                },
+                "runtime": {},
+                "health": {},
+                "channels": {},
+            }
+
+    class Renderer:
+
+        def render(
+            self,
+            snapshot,
+        ):
+            print(
+                "[RENDERED MONITOR]"
+            )
+
+    monitor_controller = (
+        MonitorConsoleController(
+            read_model=ReadModel(),
+            renderer=Renderer(),
+        )
+    )
+
+    console = SOCConsole.__new__(
+        SOCConsole
+    )
+
+    console.monitor_console_controller = (
+        monitor_controller
+    )
+
+    console.parser = CommandParser(
+        COMMAND_TREE
+    )
+
+    console.routes = {
+        (
+            "monitor",
+            None,
+        ): console.show_monitor_console,
+    }
+
+    console._execute_command(
+        "monitor"
+    )
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "[RENDERED MONITOR]"
+        in output
+    )
+
+    assert (
+        "SHOULD_NOT_PRINT_RAW"
+        not in output
+    )
+
+    assert (
+        "'operator'"
+        not in output
+    )

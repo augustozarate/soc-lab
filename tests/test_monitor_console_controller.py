@@ -82,18 +82,24 @@ def test_controller_reads_and_renders_snapshot():
         renderer,
     ) = make_controller()
 
-    snapshot = controller.render()
+    result = controller.render()
 
-    assert read_model.calls == [10]
+    assert result is None
 
-    assert renderer.snapshots == [
-        snapshot
+    assert read_model.calls == [
+        10
     ]
 
+    assert len(
+        renderer.snapshots
+    ) == 1
+
     assert (
-        snapshot["health"]["status"]
+        renderer.snapshots[0]
+        ["health"]["status"]
         == "HEALTHY"
     )
+
 
 
 def test_controller_forwards_incident_limit():
@@ -114,57 +120,46 @@ def test_controller_forwards_incident_limit():
     ) == 1
 
 
-def test_controller_returns_same_snapshot():
+def test_controller_render_returns_none():
     (
         controller,
         _,
         renderer,
     ) = make_controller()
 
-    snapshot = controller.render()
+    result = controller.render()
 
-    assert (
-        renderer.snapshots[0]
-        is snapshot
-    )
+    assert result is None
+
+    assert len(
+        renderer.snapshots
+    ) == 1
 
 
-def test_controller_does_not_mutate_snapshot():
+
+def test_controller_passes_snapshot_to_renderer_without_mutation():
     (
         controller,
-        _,
+        read_model,
         renderer,
     ) = make_controller()
 
-    snapshot = controller.render()
+    expected = read_model.snapshot()
 
-    assert snapshot == {
-        "operator": {
-            "summary": {
-                "incidents": 1,
-                "high_critical": 1,
-                "campaigns": 0,
-                "max_risk": 75,
-            },
-            "incidents": [
-                {
-                    "id": "INC-001",
-                    "severity": "HIGH",
-                },
-            ],
-            "campaigns": [],
-            "cases": [],
-            "recent_events": [],
-        },
-        "runtime": {
-            "uptime": "00:10:00",
-        },
-        "health": {
-            "status": "HEALTHY",
-            "reasons": [],
-            "snapshot_age_seconds": 1,
-        },
-    }
+    read_model.calls.clear()
+
+    result = controller.render()
+
+    assert result is None
+
+    assert read_model.calls == [
+        10
+    ]
+
+    assert renderer.snapshots == [
+        expected
+    ]
+
 
 
 def test_service_builder_constructs_monitor_console(

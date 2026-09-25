@@ -27,7 +27,7 @@ class MonitorConsoleController:
             snapshot
         )
 
-        return snapshot
+        return None
 
     def query_health(
         self,
