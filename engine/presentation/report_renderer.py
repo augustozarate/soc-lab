@@ -1,5 +1,10 @@
 import json
 from copy import deepcopy
+from io import BytesIO
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfgen import canvas
 
 from engine.presentation.reporting_contract import (
     assert_export_safe,
@@ -12,6 +17,7 @@ class ReportRenderer:
         {
             "json",
             "markdown",
+            "pdf",
         }
     )
 
@@ -44,6 +50,11 @@ class ReportRenderer:
 
         if normalized == "markdown":
             return self._render_markdown(
+                safe_document
+            )
+
+        if normalized == "pdf":
+            return self._render_pdf(
                 safe_document
             )
 
@@ -154,6 +165,230 @@ class ReportRenderer:
         return "\n".join(
             lines
         ).rstrip() + "\n"
+
+    def _render_pdf(
+        self,
+        document,
+    ):
+        # Reuse the already-established textual
+        # presentation contract so PDF cannot gain
+        # access to additional report fields.
+        markdown = self._render_markdown(
+            document
+        )
+
+        buffer = BytesIO()
+
+        pdf = canvas.Canvas(
+            buffer,
+            pagesize=A4,
+            pageCompression=1,
+        )
+
+        width, height = A4
+
+        left = 50
+        right = 50
+        top = 50
+        bottom = 50
+
+        body_size = 9
+        heading_size = 12
+        title_size = 15
+
+        usable_width = (
+            width
+            - left
+            - right
+        )
+
+        y = height - top
+
+        def new_page():
+            nonlocal y
+
+            pdf.showPage()
+            y = height - top
+
+        def ensure_space(
+            needed,
+        ):
+            nonlocal y
+
+            if y - needed < bottom:
+                new_page()
+
+        def draw_line(
+            value,
+            font_name="Helvetica",
+            font_size=body_size,
+            leading=12,
+        ):
+            nonlocal y
+
+            wrapped = self._pdf_wrap(
+                value,
+                font_name=font_name,
+                font_size=font_size,
+                max_width=usable_width,
+            )
+
+            if not wrapped:
+                y -= leading
+                return
+
+            for line in wrapped:
+                ensure_space(
+                    leading
+                )
+
+                pdf.setFont(
+                    font_name,
+                    font_size,
+                )
+
+                pdf.drawString(
+                    left,
+                    y,
+                    line,
+                )
+
+                y -= leading
+
+        for raw_line in markdown.splitlines():
+            line = raw_line.strip()
+
+            if not line:
+                ensure_space(8)
+                y -= 8
+                continue
+
+            if line.startswith("# "):
+                draw_line(
+                    line[2:],
+                    font_name="Helvetica-Bold",
+                    font_size=title_size,
+                    leading=19,
+                )
+
+            elif line.startswith("## "):
+                ensure_space(18)
+                y -= 4
+
+                draw_line(
+                    line[3:],
+                    font_name="Helvetica-Bold",
+                    font_size=heading_size,
+                    leading=16,
+                )
+
+            elif line.startswith("- "):
+                draw_line(
+                    "• " + line[2:],
+                    font_name="Helvetica",
+                    font_size=body_size,
+                    leading=12,
+                )
+
+            else:
+                draw_line(
+                    line,
+                    font_name="Helvetica",
+                    font_size=body_size,
+                    leading=12,
+                )
+
+        pdf.save()
+
+        payload = buffer.getvalue()
+
+        if not payload.startswith(
+            b"%PDF-"
+        ):
+            raise ValueError(
+                "PDF rendering failed"
+            )
+
+        return payload
+
+    @staticmethod
+    def _pdf_wrap(
+        value,
+        font_name,
+        font_size,
+        max_width,
+    ):
+        text = (
+            str(
+                value
+                if value is not None
+                else ""
+            )
+            .replace(
+                "\r",
+                " ",
+            )
+            .replace(
+                "\n",
+                " ",
+            )
+            .strip()
+        )
+
+        if not text:
+            return []
+
+        # Built-in Helvetica cannot encode every
+        # Unicode character. Replace unsupported
+        # glyphs deterministically without loading
+        # external font assets.
+        safe = text.encode(
+            "latin-1",
+            errors="replace",
+        ).decode(
+            "latin-1"
+        )
+
+        words = safe.split()
+
+        if not words:
+            return []
+
+        lines = []
+        current = ""
+
+        for word in words:
+            candidate = (
+                word
+                if not current
+                else current + " " + word
+            )
+
+            width = stringWidth(
+                candidate,
+                font_name,
+                font_size,
+            )
+
+            if (
+                width <= max_width
+                or not current
+            ):
+                current = candidate
+                continue
+
+            lines.append(
+                current
+            )
+
+            current = word
+
+        if current:
+            lines.append(
+                current
+            )
+
+        return lines
 
     def _executive_markdown(
         self,

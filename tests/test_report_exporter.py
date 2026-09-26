@@ -253,7 +253,7 @@ def test_export_rejects_unsupported_format(
             tmp_path
         ).export(
             "data",
-            "pdf",
+            "html",
             "report",
         )
 
@@ -442,3 +442,107 @@ def test_exported_utf8_content_is_preserved(
     assert target.read_text(
         encoding="utf-8"
     ) == "Revisión técnica\n"
+
+
+def test_export_pdf_creates_expected_file(
+    tmp_path,
+):
+    payload = (
+        b"%PDF-1.4\n"
+        + b"x" * 600
+    )
+
+    target = exporter(
+        tmp_path
+    ).export(
+        payload,
+        "pdf",
+        "advanced-report",
+    )
+
+    assert target.name == (
+        "advanced-report.pdf"
+    )
+
+    assert target.read_bytes() == payload
+
+
+def test_pdf_export_requires_bytes(
+    tmp_path,
+):
+    try:
+        exporter(
+            tmp_path
+        ).export(
+            "%PDF-invalid-text",
+            "pdf",
+            "report",
+        )
+
+    except ValueError as exc:
+        assert str(
+            exc
+        ) == (
+            "Rendered PDF content "
+            "must be bytes"
+        )
+
+    else:
+        raise AssertionError(
+            "Text PDF payload accepted"
+        )
+
+
+def test_pdf_export_requires_pdf_signature(
+    tmp_path,
+):
+    try:
+        exporter(
+            tmp_path
+        ).export(
+            b"NOT-A-PDF",
+            "pdf",
+            "report",
+        )
+
+    except ValueError as exc:
+        assert str(
+            exc
+        ) == (
+            "Invalid PDF payload"
+        )
+
+    else:
+        raise AssertionError(
+            "Invalid PDF payload accepted"
+        )
+
+
+def test_text_formats_still_reject_bytes(
+    tmp_path,
+):
+    for output_format in (
+        "json",
+        "markdown",
+    ):
+        try:
+            exporter(
+                tmp_path
+            ).export(
+                b"binary",
+                output_format,
+                "report",
+            )
+
+        except ValueError as exc:
+            assert str(
+                exc
+            ) == (
+                "Rendered report content "
+                "must be text"
+            )
+
+        else:
+            raise AssertionError(
+                "Binary text report accepted"
+            )

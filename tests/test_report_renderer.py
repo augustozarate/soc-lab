@@ -275,20 +275,91 @@ def test_markdown_advanced_renders_real_intelligence():
     assert "## Hunting\n\n- None" in rendered
 
 
+def test_pdf_renderer_returns_pdf_bytes():
+    renderer = ReportRenderer()
+
+    rendered = renderer.render(
+        executive_document(),
+        "pdf",
+    )
+
+    assert isinstance(
+        rendered,
+        bytes,
+    )
+
+    assert rendered.startswith(
+        b"%PDF-"
+    )
+
+    assert len(rendered) > 500
+
+
+def test_pdf_renderer_supports_all_report_profiles():
+    renderer = ReportRenderer()
+
+    for document in (
+        executive_document(),
+        technical_document(),
+        advanced_document(),
+    ):
+        rendered = renderer.render(
+            document,
+            "pdf",
+        )
+
+        assert rendered.startswith(
+            b"%PDF-"
+        )
+
+
+def test_pdf_renderer_rejects_forbidden_nested_fields():
+    renderer = ReportRenderer()
+
+    document = technical_document()
+
+    document[
+        "timeline"
+    ][0][
+        "raw_payload"
+    ] = "PRIVATE"
+
+    try:
+        renderer.render(
+            document,
+            "pdf",
+        )
+
+    except ValueError as exc:
+        assert str(
+            exc
+        ) == (
+            "Report payload contains "
+            "forbidden export fields"
+        )
+
+    else:
+        raise AssertionError(
+            "Unsafe document rendered"
+        )
+
+
 def test_renderer_rejects_unsupported_format():
     renderer = ReportRenderer()
 
     try:
         renderer.render(
             executive_document(),
-            "pdf",
+            "html",
         )
+
     except ValueError as exc:
         assert str(
             exc
         ) == (
             "Unsupported report format"
         )
+
     else:
         raise AssertionError(
             "Unsupported format accepted"

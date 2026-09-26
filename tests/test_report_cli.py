@@ -315,6 +315,33 @@ def test_invalid_report_type_rejected():
         )
 
 
+def test_pdf_format_is_forwarded_to_service():
+    service = ReportServiceStub()
+    console = make_console(
+        service
+    )
+
+    console.render_report(
+        args=[
+            "technical",
+        ],
+        flags={
+            "format": "pdf",
+        },
+    )
+
+    assert service.render_calls == [
+        {
+            "report_type": "technical",
+            "output_format": "pdf",
+            "period": None,
+            "incident_limit": None,
+            "campaign_limit": None,
+            "case_limit": None,
+        }
+    ]
+
+
 def test_invalid_format_rejected_before_service():
     service = ReportServiceStub()
     console = make_console(
@@ -327,7 +354,7 @@ def test_invalid_format_rejected_before_service():
                 "technical",
             ],
             flags={
-                "format": "pdf",
+                "format": "html",
             },
         )
 

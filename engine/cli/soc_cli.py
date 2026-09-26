@@ -232,6 +232,7 @@ class SOCConsole:
         if value not in {
             "json",
             "markdown",
+            "pdf",
         }:
             raise ValueError(
                 "Unsupported report format"
@@ -840,8 +841,10 @@ class SOCConsole:
     📌 REPORTING
     report render <executive|technical|advanced>
     report render <type> --format json
+    report render <type> --format pdf
     report export <type> <filename>
     report export <type> <filename> --format json
+    report export <type> <filename> --format pdf
     report ... --period <label>
     report ... --incidents <n> --campaigns <n> --cases <n>
 

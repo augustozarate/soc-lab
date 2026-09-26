@@ -9,6 +9,7 @@ class ReportExporter:
     EXTENSIONS = {
         "json": ".json",
         "markdown": ".md",
+        "pdf": ".pdf",
     }
 
     MAX_BASENAME_LENGTH = 96
@@ -63,7 +64,8 @@ class ReportExporter:
         )
 
         payload = self._normalize_content(
-            content
+            content,
+            output_format,
         )
 
         self._atomic_write(
@@ -151,7 +153,33 @@ class ReportExporter:
     @staticmethod
     def _normalize_content(
         content,
+        output_format,
     ):
+        normalized = str(
+            output_format
+            if output_format is not None
+            else ""
+        ).strip().lower()
+
+        if normalized == "pdf":
+            if not isinstance(
+                content,
+                bytes,
+            ):
+                raise ValueError(
+                    "Rendered PDF content "
+                    "must be bytes"
+                )
+
+            if not content.startswith(
+                b"%PDF-"
+            ):
+                raise ValueError(
+                    "Invalid PDF payload"
+                )
+
+            return content
+
         if not isinstance(
             content,
             str,
@@ -195,12 +223,17 @@ class ReportExporter:
         temporary_path = None
 
         try:
+            binary = isinstance(
+                content,
+                bytes,
+            )
+
             fd, temporary_name = (
                 tempfile.mkstemp(
                     dir=directory,
                     prefix=".report_",
                     suffix=".tmp",
-                    text=True,
+                    text=not binary,
                 )
             )
 
@@ -208,23 +241,41 @@ class ReportExporter:
                 temporary_name
             )
 
-            with os.fdopen(
-                fd,
-                "w",
-                encoding="utf-8",
-                newline="\n",
-            ) as handle:
-                fd = None
+            if binary:
+                with os.fdopen(
+                    fd,
+                    "wb",
+                ) as handle:
+                    fd = None
 
-                handle.write(
-                    content
-                )
+                    handle.write(
+                        content
+                    )
 
-                handle.flush()
+                    handle.flush()
 
-                os.fsync(
-                    handle.fileno()
-                )
+                    os.fsync(
+                        handle.fileno()
+                    )
+
+            else:
+                with os.fdopen(
+                    fd,
+                    "w",
+                    encoding="utf-8",
+                    newline="\n",
+                ) as handle:
+                    fd = None
+
+                    handle.write(
+                        content
+                    )
+
+                    handle.flush()
+
+                    os.fsync(
+                        handle.fileno()
+                    )
 
             os.replace(
                 temporary_path,
