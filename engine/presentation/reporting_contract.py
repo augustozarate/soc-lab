@@ -85,7 +85,17 @@ TECHNICAL_INCIDENT_FIELDS = (
 ADVANCED_INCIDENT_FIELDS = (
     TECHNICAL_INCIDENT_FIELDS
     | {
-        "alerts",
+        "threat_intel",
+    }
+)
+
+
+SAFE_THREAT_INTEL_FIELDS = frozenset(
+    {
+        "reputation",
+        "confidence",
+        "country",
+        "known_attack",
     }
 )
 
@@ -99,6 +109,23 @@ CAMPAIGN_FIELDS = frozenset(
         "tactics",
         "created",
         "updated",
+    }
+)
+
+
+ADVANCED_CAMPAIGN_FIELDS = (
+    CAMPAIGN_FIELDS
+    | {
+        "entities",
+    }
+)
+
+
+SAFE_ENTITY_TYPES = frozenset(
+    {
+        "ip",
+        "user",
+        "host",
     }
 )
 

@@ -474,7 +474,7 @@ def test_technical_rejects_forbidden_incident_fields():
         )
 
 
-def test_advanced_rejects_forbidden_incident_fields():
+def test_advanced_reduces_forbidden_top_level_incident_fields():
     source = snapshot()
 
     source[
@@ -483,26 +483,175 @@ def test_advanced_rejects_forbidden_incident_fields():
         "internal_note"
     ] = "PRIVATE"
 
-    try:
-        ReportProjector().project(
-            snapshot=source,
-            report_type="advanced",
-            generated_at="now",
-            period={
-                "label": "probe",
-            },
-        )
+    source[
+        "incidents"
+    ][0][
+        "secret"
+    ] = "DO-NOT-EXPORT"
 
-    except ValueError as exc:
-        assert str(
-            exc
-        ) == (
-            "Report payload contains "
-            "forbidden export fields"
-        )
+    report = ReportProjector().project(
+        snapshot=source,
+        report_type="advanced",
+        generated_at="now",
+        period={
+            "label": "probe",
+        },
+    )
 
-    else:
-        raise AssertionError(
-            "Advanced report accepted "
-            "forbidden incident field"
-        )
+    serialized = repr(
+        report
+    )
+
+    for marker in (
+        "internal_note",
+        "secret",
+        "PRIVATE",
+        "DO-NOT-EXPORT",
+    ):
+        assert marker not in serialized
+
+
+def test_advanced_report_technical_surface_stays_sanitized():
+    source = snapshot()
+
+    source[
+        "incidents"
+    ][0][
+        "threat_intel"
+    ] = {
+        "reputation": "suspicious",
+        "confidence": 88,
+    }
+
+    source[
+        "campaigns"
+    ][0][
+        "entities"
+    ] = {
+        "ip": [
+            "192.0.2.10",
+        ],
+    }
+
+    report = ReportProjector().project(
+        snapshot=source,
+        report_type="advanced",
+        generated_at="now",
+        period={
+            "label": "demo",
+        },
+    )
+
+    assert (
+        "threat_intel"
+        not in report[
+            "incidents"
+        ][0]
+    )
+
+    assert (
+        "entities"
+        not in report[
+            "campaigns"
+        ][0]
+    )
+
+
+def test_advanced_report_projects_campaign_entities():
+    source = snapshot()
+
+    source[
+        "campaigns"
+    ][0][
+        "entities"
+    ] = {
+        "host": [
+            "soc-win-01",
+        ],
+        "ip": [
+            "192.0.2.10",
+        ],
+        "user": [
+            "augus",
+        ],
+    }
+
+    report = ReportProjector().project(
+        snapshot=source,
+        report_type="advanced",
+        generated_at="now",
+        period={
+            "label": "demo",
+        },
+    )
+
+    assert report["entities"] == [
+        {
+            "campaign_id": "CMP-1",
+            "type": "host",
+            "value": "soc-win-01",
+        },
+        {
+            "campaign_id": "CMP-1",
+            "type": "ip",
+            "value": "192.0.2.10",
+        },
+        {
+            "campaign_id": "CMP-1",
+            "type": "user",
+            "value": "augus",
+        },
+    ]
+
+
+def test_advanced_report_projects_real_threat_intelligence():
+    source = snapshot()
+
+    source[
+        "incidents"
+    ][0][
+        "threat_intel"
+    ] = {
+        "reputation": "suspicious",
+        "confidence": 88,
+        "country": "AR",
+        "known_attack": True,
+    }
+
+    report = ReportProjector().project(
+        snapshot=source,
+        report_type="advanced",
+        generated_at="now",
+        period={
+            "label": "demo",
+        },
+    )
+
+    assert report[
+        "threat_intelligence"
+    ] == [
+        {
+            "incident_id": "INC-1",
+            "reputation": "suspicious",
+            "confidence": 88,
+            "country": "AR",
+            "known_attack": True,
+        }
+    ]
+
+
+def test_advanced_hunting_remains_empty_without_persisted_source():
+    source = snapshot()
+
+    report = ReportProjector().project(
+        snapshot=source,
+        report_type="advanced",
+        generated_at="now",
+        period={
+            "label": "demo",
+        },
+    )
+
+    assert report[
+        "hunting"
+    ] == []

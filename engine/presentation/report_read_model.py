@@ -1,8 +1,12 @@
 from copy import deepcopy
 
 from engine.presentation.reporting_contract import (
+    ADVANCED_CAMPAIGN_FIELDS,
+    ADVANCED_INCIDENT_FIELDS,
     CAMPAIGN_FIELDS,
     CASE_FIELDS,
+    SAFE_ENTITY_TYPES,
+    SAFE_THREAT_INTEL_FIELDS,
     TECHNICAL_INCIDENT_FIELDS,
     assert_export_safe,
     project_fields,
@@ -42,13 +46,16 @@ class ReportReadModel:
         incident_limit=DEFAULT_INCIDENT_LIMIT,
         campaign_limit=DEFAULT_CAMPAIGN_LIMIT,
         case_limit=DEFAULT_CASE_LIMIT,
+        advanced=False,
     ):
         incidents = self._incidents(
-            incident_limit
+            incident_limit,
+            advanced=advanced,
         )
 
         campaigns = self._campaigns(
-            campaign_limit
+            campaign_limit,
+            advanced=advanced,
         )
 
         cases = self._cases(
@@ -111,6 +118,7 @@ class ReportReadModel:
     def _incidents(
         self,
         limit,
+        advanced=False,
     ):
         bounded_limit = self._bounded_limit(
             limit,
@@ -125,24 +133,55 @@ class ReportReadModel:
             )
         )
 
-        return [
-            project_fields(
+        safe = []
+
+        for row in (
+            rows
+            if isinstance(
+                rows,
+                list,
+            )
+            else []
+        ):
+            allowed = (
+                ADVANCED_INCIDENT_FIELDS
+                if advanced
+                else TECHNICAL_INCIDENT_FIELDS
+            )
+
+            incident = project_fields(
                 row,
-                TECHNICAL_INCIDENT_FIELDS,
+                allowed,
             )
-            for row in (
-                rows
-                if isinstance(
-                    rows,
-                    list,
+
+            if advanced:
+                incident[
+                    "threat_intel"
+                ] = project_fields(
+                    row.get(
+                        "threat_intel"
+                    ),
+                    SAFE_THREAT_INTEL_FIELDS,
                 )
-                else []
+
+                if not incident[
+                    "threat_intel"
+                ]:
+                    incident.pop(
+                        "threat_intel",
+                        None,
+                    )
+
+            safe.append(
+                incident
             )
-        ]
+
+        return safe
 
     def _campaigns(
         self,
         limit,
+        advanced=False,
     ):
         bounded_limit = self._bounded_limit(
             limit,
@@ -157,20 +196,83 @@ class ReportReadModel:
             )
         )
 
-        return [
-            project_fields(
+        safe = []
+
+        for row in (
+            rows
+            if isinstance(
+                rows,
+                list,
+            )
+            else []
+        ):
+            allowed = (
+                ADVANCED_CAMPAIGN_FIELDS
+                if advanced
+                else CAMPAIGN_FIELDS
+            )
+
+            campaign = project_fields(
                 row,
-                CAMPAIGN_FIELDS,
+                allowed,
             )
-            for row in (
-                rows
-                if isinstance(
-                    rows,
-                    list,
+
+            if advanced:
+                raw_entities = row.get(
+                    "entities"
                 )
-                else []
+
+                entities = {}
+
+                if isinstance(
+                    raw_entities,
+                    dict,
+                ):
+                    for entity_type in sorted(
+                        SAFE_ENTITY_TYPES
+                    ):
+                        values = raw_entities.get(
+                            entity_type,
+                            []
+                        )
+
+                        if not isinstance(
+                            values,
+                            (
+                                list,
+                                tuple,
+                            ),
+                        ):
+                            continue
+
+                        entities[
+                            entity_type
+                        ] = [
+                            str(value).strip()
+                            for value in values
+                            if (
+                                value is not None
+                                and str(
+                                    value
+                                ).strip()
+                            )
+                        ]
+
+                campaign[
+                    "entities"
+                ] = entities
+
+                if not entities:
+                    campaign.pop(
+                        "entities",
+                        None,
+                    )
+
+            safe.append(
+                campaign
             )
-        ]
+
+        return safe
 
     def _cases(
         self,

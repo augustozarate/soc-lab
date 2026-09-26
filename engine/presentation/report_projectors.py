@@ -1,11 +1,14 @@
 from copy import deepcopy
 
 from engine.presentation.reporting_contract import (
+    CAMPAIGN_FIELDS,
     REPORT_TYPE_ADVANCED,
     REPORT_TYPE_EXECUTIVE,
     REPORT_TYPE_TECHNICAL,
+    TECHNICAL_INCIDENT_FIELDS,
     assert_export_safe,
     normalize_report_type,
+    project_fields,
 )
 
 
@@ -388,14 +391,16 @@ class ReportProjector:
         snapshot,
         metadata,
     ):
-        technical = self._technical(
-            snapshot,
-            {
-                **metadata,
-                "report_type": (
-                    REPORT_TYPE_ADVANCED
-                ),
-            },
+        incidents = self._list(
+            snapshot.get(
+                "incidents"
+            )
+        )
+
+        campaigns = self._list(
+            snapshot.get(
+                "campaigns"
+            )
         )
 
         cases = self._list(
@@ -404,10 +409,49 @@ class ReportProjector:
             )
         )
 
+        technical_snapshot = {
+            "summary": self._dict(
+                snapshot.get(
+                    "summary"
+                )
+            ),
+            "incidents": [
+                project_fields(
+                    incident,
+                    TECHNICAL_INCIDENT_FIELDS,
+                )
+                for incident in incidents
+            ],
+            "campaigns": [
+                project_fields(
+                    campaign,
+                    CAMPAIGN_FIELDS,
+                )
+                for campaign in campaigns
+            ],
+            "cases": cases,
+        }
+
+        technical = self._technical(
+            technical_snapshot,
+            {
+                **metadata,
+                "report_type": (
+                    REPORT_TYPE_ADVANCED
+                ),
+            },
+        )
+
         return {
             **technical,
-            "entities": [],
-            "threat_intelligence": [],
+            "entities": self._entities(
+                campaigns
+            ),
+            "threat_intelligence": (
+                self._threat_intelligence(
+                    incidents
+                )
+            ),
             "hunting": [],
             "evidence": [
                 {
@@ -437,6 +481,120 @@ class ReportProjector:
                 for case in cases
             ],
         }
+
+    @staticmethod
+    def _entities(
+        campaigns,
+    ):
+        values = []
+        seen = set()
+
+        for campaign in campaigns:
+            campaign_id = campaign.get(
+                "id"
+            )
+
+            entities = campaign.get(
+                "entities"
+            )
+
+            if not isinstance(
+                entities,
+                dict,
+            ):
+                continue
+
+            for entity_type in (
+                "host",
+                "ip",
+                "user",
+            ):
+                raw_values = entities.get(
+                    entity_type,
+                    []
+                )
+
+                if not isinstance(
+                    raw_values,
+                    (
+                        list,
+                        tuple,
+                    ),
+                ):
+                    continue
+
+                for raw_value in raw_values:
+                    if raw_value is None:
+                        continue
+
+                    value = str(
+                        raw_value
+                    ).strip()
+
+                    if not value:
+                        continue
+
+                    key = (
+                        campaign_id,
+                        entity_type,
+                        value,
+                    )
+
+                    if key in seen:
+                        continue
+
+                    seen.add(
+                        key
+                    )
+
+                    values.append(
+                        {
+                            "campaign_id": (
+                                campaign_id
+                            ),
+                            "type": (
+                                entity_type
+                            ),
+                            "value": value,
+                        }
+                    )
+
+        return values
+
+    @staticmethod
+    def _threat_intelligence(
+        incidents,
+    ):
+        values = []
+
+        for incident in incidents:
+            threat_intel = incident.get(
+                "threat_intel"
+            )
+
+            if not isinstance(
+                threat_intel,
+                dict,
+            ):
+                continue
+
+            if not threat_intel:
+                continue
+
+            values.append(
+                {
+                    "incident_id": (
+                        incident.get(
+                            "id"
+                        )
+                    ),
+                    **deepcopy(
+                        threat_intel
+                    ),
+                }
+            )
+
+        return values
 
     @staticmethod
     def _recommendations(

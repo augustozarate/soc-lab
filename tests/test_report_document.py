@@ -211,3 +211,24 @@ def test_builder_rejects_unknown_profile():
         raise AssertionError(
             "Unsupported report accepted"
         )
+
+
+def test_advanced_builder_requests_advanced_snapshot():
+    read_model = ReadModelStub(
+        base_snapshot()
+    )
+
+    builder = ReportDocumentBuilder(
+        read_model=read_model,
+        clock=lambda: "now",
+    )
+
+    builder.build(
+        "advanced"
+    )
+
+    assert read_model.calls == [
+        {
+            "advanced": True,
+        }
+    ]

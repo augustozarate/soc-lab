@@ -52,6 +52,13 @@ class ReportDocumentBuilder:
                 "case_limit"
             ] = case_limit
 
+        if str(
+            report_type
+        ).strip().lower() == "advanced":
+            kwargs[
+                "advanced"
+            ] = True
+
         snapshot = (
             self.read_model
             .snapshot(

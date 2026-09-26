@@ -132,13 +132,23 @@ def test_technical_incident_projection_adds_soc_context():
     assert "alerts" not in TECHNICAL_INCIDENT_FIELDS
 
 
-def test_advanced_incident_projection_can_include_alert_context():
+def test_advanced_incident_projection_uses_safe_threat_intel_context():
     assert (
         TECHNICAL_INCIDENT_FIELDS
         < ADVANCED_INCIDENT_FIELDS
     )
 
-    assert "alerts" in ADVANCED_INCIDENT_FIELDS
+    assert (
+        ADVANCED_INCIDENT_FIELDS
+        - TECHNICAL_INCIDENT_FIELDS
+    ) == {
+        "threat_intel",
+    }
+
+    assert (
+        "alerts"
+        not in ADVANCED_INCIDENT_FIELDS
+    )
 
 
 def test_campaign_projection_is_explicit():
@@ -331,3 +341,50 @@ def test_export_safety_rejects_nested_secret_fields():
         raise AssertionError(
             "Unsafe report payload accepted"
         )
+
+
+def test_advanced_incident_uses_real_threat_intel_source():
+    assert (
+        ADVANCED_INCIDENT_FIELDS
+        - TECHNICAL_INCIDENT_FIELDS
+    ) == {
+        "threat_intel",
+    }
+
+
+def test_safe_threat_intel_contract_is_explicit():
+    from engine.presentation.reporting_contract import (
+        SAFE_THREAT_INTEL_FIELDS,
+    )
+
+    assert SAFE_THREAT_INTEL_FIELDS == {
+        "reputation",
+        "confidence",
+        "country",
+        "known_attack",
+    }
+
+
+def test_advanced_campaign_adds_entities_only():
+    from engine.presentation.reporting_contract import (
+        ADVANCED_CAMPAIGN_FIELDS,
+    )
+
+    assert (
+        ADVANCED_CAMPAIGN_FIELDS
+        - CAMPAIGN_FIELDS
+    ) == {
+        "entities",
+    }
+
+
+def test_safe_entity_types_are_explicit():
+    from engine.presentation.reporting_contract import (
+        SAFE_ENTITY_TYPES,
+    )
+
+    assert SAFE_ENTITY_TYPES == {
+        "ip",
+        "user",
+        "host",
+    }

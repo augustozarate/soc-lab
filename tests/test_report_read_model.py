@@ -570,3 +570,150 @@ def test_invalid_summary_values_fail_closed():
         "campaigns": 0,
         "max_risk": 0.0,
     }
+
+
+def test_default_snapshot_excludes_advanced_sources():
+    (
+        model,
+        _incidents,
+        _campaigns,
+        _cases,
+    ) = build_model(
+        incidents=[
+            {
+                "id": "INC-1",
+                "threat_intel": {
+                    "reputation": "suspicious",
+                },
+            }
+        ],
+        campaigns=[
+            {
+                "id": "CMP-1",
+                "entities": {
+                    "ip": [
+                        "192.0.2.10",
+                    ]
+                },
+            }
+        ],
+    )
+
+    result = model.snapshot()
+
+    assert (
+        "threat_intel"
+        not in result[
+            "incidents"
+        ][0]
+    )
+
+    assert (
+        "entities"
+        not in result[
+            "campaigns"
+        ][0]
+    )
+
+
+def test_advanced_snapshot_sanitizes_threat_intel():
+    (
+        model,
+        _incidents,
+        _campaigns,
+        _cases,
+    ) = build_model(
+        incidents=[
+            {
+                "id": "INC-1",
+                "threat_intel": {
+                    "reputation": "suspicious",
+                    "confidence": 88,
+                    "country": "AR",
+                    "known_attack": True,
+                    "provider_debug": "PRIVATE",
+                    "token": "SECRET",
+                },
+            }
+        ]
+    )
+
+    result = model.snapshot(
+        advanced=True
+    )
+
+    assert result[
+        "incidents"
+    ][0][
+        "threat_intel"
+    ] == {
+        "reputation": "suspicious",
+        "confidence": 88,
+        "country": "AR",
+        "known_attack": True,
+    }
+
+    serialized = repr(
+        result
+    )
+
+    assert "provider_debug" not in serialized
+    assert "PRIVATE" not in serialized
+    assert "token" not in serialized
+    assert "SECRET" not in serialized
+
+
+def test_advanced_snapshot_sanitizes_campaign_entities():
+    (
+        model,
+        _incidents,
+        _campaigns,
+        _cases,
+    ) = build_model(
+        campaigns=[
+            {
+                "id": "CMP-1",
+                "entities": {
+                    "ip": [
+                        "192.0.2.10",
+                    ],
+                    "user": [
+                        "augus",
+                    ],
+                    "host": [
+                        "soc-win-01",
+                    ],
+                    "unknown": [
+                        "DO-NOT-EXPORT",
+                    ],
+                },
+            }
+        ]
+    )
+
+    result = model.snapshot(
+        advanced=True
+    )
+
+    assert result[
+        "campaigns"
+    ][0][
+        "entities"
+    ] == {
+        "host": [
+            "soc-win-01",
+        ],
+        "ip": [
+            "192.0.2.10",
+        ],
+        "user": [
+            "augus",
+        ],
+    }
+
+    assert (
+        "DO-NOT-EXPORT"
+        not in repr(
+            result
+        )
+    )
