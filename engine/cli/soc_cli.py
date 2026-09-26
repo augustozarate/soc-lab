@@ -7,7 +7,10 @@ from engine.analysis.attack_view import render_story
 from engine.cli.console_io import console_lock
 from engine.cli.console_io import safe_print as print
 from engine.services.ai_analyst import AIAnalyst
-from engine.cli.command_parser import CommandParser
+from engine.cli.command_parser import (
+    CommandParser,
+    UnknownCommandError,
+)
 from rich.table import Table
 from engine.cli.console_output import log
 
@@ -334,12 +337,32 @@ class SOCConsole:
     def handle_command(self, cmd):
         try:
             self._execute_command(cmd)
-        except Exception as e:
-            suggestion = self.suggest_command(cmd.split()[0])
+
+        except UnknownCommandError as exc:
+            unknown = str(
+                exc
+            )
+
+            suggestion = self.suggest_command(
+                unknown
+            )
+
             if suggestion:
-                print(f"[ERROR] Unknown command '{cmd}'. Did you mean '{suggestion}'?")
+                print(
+                    f"[ERROR] Unknown command "
+                    f"'{unknown}'. Did you mean "
+                    f"'{suggestion}'?"
+                )
             else:
-                print(f"[ERROR] {str(e)}")
+                print(
+                    f"[ERROR] Unknown command "
+                    f"'{unknown}'."
+                )
+
+        except Exception:
+            print(
+                "[ERROR] Command execution failed"
+            )
 
     def search_incidents(self, args, flags, input_data=None):
         filters = self.parse_filters(args)

@@ -732,3 +732,216 @@ def test_monitor_command_does_not_print_raw_snapshot(
         "'operator'"
         not in output
     )
+
+
+def test_unknown_command_gets_suggestion_without_internal_error(
+    capsys,
+):
+    from engine.cli.command_parser import (
+        CommandParser,
+    )
+    from engine.cli.soc_cli import (
+        COMMAND_TREE,
+        SOCConsole,
+    )
+
+    console = SOCConsole.__new__(
+        SOCConsole
+    )
+
+    console.parser = CommandParser(
+        COMMAND_TREE
+    )
+
+    console.routes = {
+        (
+            "health",
+            None,
+        ): lambda *args: None,
+    }
+
+    console.handle_command(
+        "healht"
+    )
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "Unknown command 'healht'"
+        in output
+    )
+
+    assert (
+        "Did you mean 'health'?"
+        in output
+    )
+
+    assert (
+        "Available:"
+        not in output
+    )
+
+
+def test_valid_command_internal_failure_is_not_unknown_command(
+    capsys,
+):
+    from engine.cli.command_parser import (
+        CommandParser,
+    )
+    from engine.cli.soc_cli import (
+        COMMAND_TREE,
+        SOCConsole,
+    )
+
+    def broken_route(
+        args,
+        flags,
+        input_data,
+    ):
+        raise RuntimeError(
+            "INTERNAL-SECRET-DETAIL"
+        )
+
+    console = SOCConsole.__new__(
+        SOCConsole
+    )
+
+    console.parser = CommandParser(
+        COMMAND_TREE
+    )
+
+    console.routes = {
+        (
+            "health",
+            None,
+        ): broken_route,
+    }
+
+    console.handle_command(
+        "health"
+    )
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "[ERROR] Command execution failed"
+        in output
+    )
+
+    assert (
+        "Unknown command"
+        not in output
+    )
+
+    assert (
+        "INTERNAL-SECRET-DETAIL"
+        not in output
+    )
+
+
+def test_unknown_command_without_suggestion_is_generic_unknown(
+    capsys,
+):
+    from engine.cli.command_parser import (
+        CommandParser,
+    )
+    from engine.cli.soc_cli import (
+        COMMAND_TREE,
+        SOCConsole,
+    )
+
+    console = SOCConsole.__new__(
+        SOCConsole
+    )
+
+    console.parser = CommandParser(
+        COMMAND_TREE
+    )
+
+    console.routes = {
+        (
+            "health",
+            None,
+        ): lambda *args: None,
+    }
+
+    console.handle_command(
+        "totally-unknown"
+    )
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "[ERROR] Unknown command "
+        "'totally-unknown'."
+        in output
+    )
+
+    assert (
+        "Command execution failed"
+        not in output
+    )
+
+    assert (
+        "Available:"
+        not in output
+    )
+
+
+def test_valid_parsed_command_missing_route_is_operational_failure(
+    capsys,
+):
+    from engine.cli.command_parser import (
+        CommandParser,
+    )
+    from engine.cli.soc_cli import (
+        COMMAND_TREE,
+        SOCConsole,
+    )
+
+    console = SOCConsole.__new__(
+        SOCConsole
+    )
+
+    console.parser = CommandParser(
+        COMMAND_TREE
+    )
+
+    console.routes = {}
+
+    console.handle_command(
+        "health"
+    )
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "[ERROR] Command execution failed"
+        in output
+    )
+
+    assert (
+        "Unknown command"
+        not in output
+    )
+
+    assert (
+        "Command not implemented"
+        not in output
+    )

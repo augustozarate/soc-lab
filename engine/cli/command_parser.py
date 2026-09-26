@@ -1,5 +1,10 @@
 import shlex
 
+
+class UnknownCommandError(ValueError):
+    pass
+
+
 class CommandParser:
 
     def __init__(self, command_tree):
@@ -22,8 +27,8 @@ class CommandParser:
         cmd = tokens.pop(0)
 
         if cmd not in self.tree:
-            raise ValueError(
-                f"Unknown command '{cmd}'. Available: {', '.join(self.tree.keys())}"
+            raise UnknownCommandError(
+                cmd
             )
 
         result["command"] = cmd
