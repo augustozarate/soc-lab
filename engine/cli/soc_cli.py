@@ -23,6 +23,11 @@ COMMAND_TREE = {
     "channels": {},
     "metrics": {},
 
+    "report": {
+        "render": {},
+        "export": {},
+    },
+
     "incidents": {
         "list": {},
         "show": {},
@@ -101,6 +106,7 @@ class SOCConsole:
         ai_analyst=None,
         operator_console_controller=None,
         monitor_console_controller=None,
+        report_application_service=None,
     ):
         self.routes = {
             # BASE COMMANDS
@@ -110,6 +116,11 @@ class SOCConsole:
             ("health", None): self.show_monitor_health,
             ("channels", None): self.show_monitor_channels,
             ("metrics", None): self.show_monitor_metrics,
+
+            # REPORTING
+            ("report", "render"): self.render_report,
+            ("report", "export"): self.export_report,
+
             ("case", None): self.list_cases,        # opcional
             ("ai", None): self.ai_help,             # opcional
             ("util", None): self.util_help,         # opcional
@@ -174,8 +185,252 @@ class SOCConsole:
         self.monitor_console_controller = (
             monitor_console_controller
         )
+        self.report_application_service = (
+            report_application_service
+        )
         self.parser = CommandParser(COMMAND_TREE)
         self._thread = None
+
+    @staticmethod
+    def _report_type(
+        args,
+    ):
+        if not args:
+            raise ValueError(
+                "Usage: report <render|export> "
+                "<executive|technical|advanced>"
+            )
+
+        value = str(
+            args[0]
+        ).strip().lower()
+
+        if value not in {
+            "executive",
+            "technical",
+            "advanced",
+        }:
+            raise ValueError(
+                "Unsupported report type"
+            )
+
+        return value
+
+    @staticmethod
+    def _report_format(
+        flags,
+    ):
+        flags = flags or {}
+
+        value = str(
+            flags.get(
+                "format",
+                "markdown",
+            )
+        ).strip().lower()
+
+        if value not in {
+            "json",
+            "markdown",
+        }:
+            raise ValueError(
+                "Unsupported report format"
+            )
+
+        return value
+
+    @staticmethod
+    def _report_limit(
+        flags,
+        name,
+    ):
+        flags = flags or {}
+
+        value = flags.get(
+            name
+        )
+
+        if value is None:
+            return None
+
+        try:
+            normalized = int(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise ValueError(
+                f"Invalid report {name} limit"
+            ) from exc
+
+        if normalized < 0:
+            raise ValueError(
+                f"Invalid report {name} limit"
+            )
+
+        return normalized
+
+    @staticmethod
+    def _report_period(
+        flags,
+    ):
+        flags = flags or {}
+
+        label = flags.get(
+            "period"
+        )
+
+        if label is None:
+            return None
+
+        normalized = str(
+            label
+        ).strip()
+
+        if not normalized:
+            raise ValueError(
+                "Invalid report period"
+            )
+
+        return {
+            "label": normalized,
+        }
+
+    def _report_kwargs(
+        self,
+        flags,
+    ):
+        return {
+            "period": self._report_period(
+                flags
+            ),
+            "incident_limit": self._report_limit(
+                flags,
+                "incidents",
+            ),
+            "campaign_limit": self._report_limit(
+                flags,
+                "campaigns",
+            ),
+            "case_limit": self._report_limit(
+                flags,
+                "cases",
+            ),
+        }
+
+    def _require_report_service(
+        self,
+    ):
+        if (
+            self.report_application_service
+            is None
+        ):
+            raise RuntimeError(
+                "Reporting is unavailable"
+            )
+
+        return (
+            self.report_application_service
+        )
+
+    def render_report(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if input_data is not None:
+            raise ValueError(
+                "Report commands cannot "
+                "consume pipeline input"
+            )
+
+        report_type = (
+            self._report_type(
+                args or []
+            )
+        )
+
+        output_format = (
+            self._report_format(
+                flags
+            )
+        )
+
+        service = (
+            self._require_report_service()
+        )
+
+        return service.render(
+            report_type=report_type,
+            output_format=output_format,
+            **self._report_kwargs(
+                flags
+            ),
+        )
+
+    def export_report(
+        self,
+        args=None,
+        flags=None,
+        input_data=None,
+    ):
+        if input_data is not None:
+            raise ValueError(
+                "Report commands cannot "
+                "consume pipeline input"
+            )
+
+        args = args or []
+
+        report_type = (
+            self._report_type(
+                args
+            )
+        )
+
+        if len(args) < 2:
+            raise ValueError(
+                "Usage: report export "
+                "<executive|technical|advanced> "
+                "<filename>"
+            )
+
+        basename = str(
+            args[1]
+        ).strip()
+
+        if not basename:
+            raise ValueError(
+                "Report filename is required"
+            )
+
+        output_format = (
+            self._report_format(
+                flags
+            )
+        )
+
+        service = (
+            self._require_report_service()
+        )
+
+        destination = service.export(
+            report_type=report_type,
+            output_format=output_format,
+            basename=basename,
+            **self._report_kwargs(
+                flags
+            ),
+        )
+
+        return (
+            "Report exported: "
+            f"{destination}"
+        )
 
     def show_operator_console(
         self,
@@ -581,6 +836,14 @@ class SOCConsole:
     📌 OUTPUT
     util table
     util json
+
+    📌 REPORTING
+    report render <executive|technical|advanced>
+    report render <type> --format json
+    report export <type> <filename>
+    report export <type> <filename> --format json
+    report ... --period <label>
+    report ... --incidents <n> --campaigns <n> --cases <n>
 
     📌 GROUPING
     group <field>

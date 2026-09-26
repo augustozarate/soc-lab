@@ -153,6 +153,9 @@ def create_app():
         ),
         monitor_console_controller=(
             container.monitor_console_controller
+        ),
+        report_application_service=(
+            container.report_application_service
         )
     )
 
