@@ -86,6 +86,17 @@ ADVANCED_INCIDENT_FIELDS = (
     TECHNICAL_INCIDENT_FIELDS
     | {
         "threat_intel",
+        "hunt_findings",
+    }
+)
+
+
+SAFE_HUNT_FINDING_FIELDS = frozenset(
+    {
+        "type",
+        "timestamp",
+        "description",
+        "action",
     }
 )
 

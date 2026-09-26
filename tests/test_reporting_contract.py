@@ -143,6 +143,7 @@ def test_advanced_incident_projection_uses_safe_threat_intel_context():
         - TECHNICAL_INCIDENT_FIELDS
     ) == {
         "threat_intel",
+            "hunt_findings",
     }
 
     assert (
@@ -349,6 +350,7 @@ def test_advanced_incident_uses_real_threat_intel_source():
         - TECHNICAL_INCIDENT_FIELDS
     ) == {
         "threat_intel",
+            "hunt_findings",
     }
 
 
@@ -388,3 +390,42 @@ def test_safe_entity_types_are_explicit():
         "user",
         "host",
     }
+
+
+def test_advanced_incident_projection_allows_safe_hunt_source():
+    assert (
+        ADVANCED_INCIDENT_FIELDS
+        - TECHNICAL_INCIDENT_FIELDS
+    ) == {
+        "threat_intel",
+        "hunt_findings",
+    }
+
+    assert "alerts" not in (
+        ADVANCED_INCIDENT_FIELDS
+    )
+
+
+def test_safe_hunt_finding_contract_is_explicit():
+    from engine.presentation.reporting_contract import (
+        SAFE_HUNT_FINDING_FIELDS,
+    )
+
+    assert SAFE_HUNT_FINDING_FIELDS == {
+        "type",
+        "timestamp",
+        "description",
+        "action",
+    }
+
+    assert "raw_event" not in (
+        SAFE_HUNT_FINDING_FIELDS
+    )
+
+    assert "internal_note" not in (
+        SAFE_HUNT_FINDING_FIELDS
+    )
+
+    assert "secret" not in (
+        SAFE_HUNT_FINDING_FIELDS
+    )

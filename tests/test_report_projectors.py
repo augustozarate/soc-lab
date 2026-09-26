@@ -655,3 +655,114 @@ def test_advanced_hunting_remains_empty_without_persisted_source():
     assert report[
         "hunting"
     ] == []
+
+
+
+def _persisted_hunting_snapshot():
+    return {
+        "summary": {
+            "incidents": 1,
+            "high_critical": 1,
+            "campaigns": 0,
+            "max_risk": 0,
+        },
+        "incidents": [
+            {
+                "id": "INC-1",
+                "ip": "192.0.2.10",
+                "severity": "HIGH",
+                "status": "OPEN",
+                "risk_score": 80,
+                "timeline": [],
+                "response_actions": [],
+            }
+        ],
+        "campaigns": [],
+        "cases": [],
+    }
+
+
+def test_advanced_report_projects_persisted_hunting():
+    snapshot = _persisted_hunting_snapshot()
+
+    snapshot["incidents"][0]["hunt_findings"] = [
+        {
+            "type": "MITRE_CONTEXT_HUNT",
+            "timestamp": (
+                "2026-09-26T20:00:00+00:00"
+            ),
+            "description": (
+                "Related activity detected"
+            ),
+            "action": "ssh_login",
+        }
+    ]
+
+    report = ReportProjector().project(
+        snapshot=snapshot,
+        report_type="advanced",
+        generated_at=(
+            "2026-09-26T20:30:00+00:00"
+        ),
+        period={
+            "label": "audit",
+        },
+    )
+
+    assert report["hunting"] == [
+        {
+            "incident_id": "INC-1",
+            "type": "MITRE_CONTEXT_HUNT",
+            "timestamp": (
+                "2026-09-26T20:00:00+00:00"
+            ),
+            "description": (
+                "Related activity detected"
+            ),
+            "action": "ssh_login",
+        }
+    ]
+
+
+def test_advanced_hunting_deduplicates_persisted_findings():
+    snapshot = _persisted_hunting_snapshot()
+
+    finding = {
+        "type": "MITRE_CONTEXT_HUNT",
+        "timestamp": "safe-time",
+        "description": "safe",
+        "action": "safe-action",
+    }
+
+    snapshot["incidents"][0]["hunt_findings"] = [
+        dict(finding),
+        dict(finding),
+    ]
+
+    report = ReportProjector().project(
+        snapshot=snapshot,
+        report_type="advanced",
+        generated_at="now",
+        period={
+            "label": "audit",
+        },
+    )
+
+    assert len(
+        report["hunting"]
+    ) == 1
+
+
+def test_advanced_hunting_does_not_execute_live_hunter():
+    snapshot = _persisted_hunting_snapshot()
+
+    report = ReportProjector().project(
+        snapshot=snapshot,
+        report_type="advanced",
+        generated_at="now",
+        period={
+            "label": "audit",
+        },
+    )
+
+    assert report["hunting"] == []

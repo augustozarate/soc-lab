@@ -452,7 +452,9 @@ class ReportProjector:
                     incidents
                 )
             ),
-            "hunting": [],
+            "hunting": self._hunting(
+                incidents
+            ),
             "evidence": [
                 {
                     "case_id": case.get(
@@ -558,6 +560,84 @@ class ReportProjector:
                             "value": value,
                         }
                     )
+
+        return values
+
+    @staticmethod
+    def _hunting(
+        incidents,
+    ):
+        values = []
+        seen = set()
+
+        for incident in incidents:
+            incident_id = incident.get(
+                "id"
+            )
+
+            findings = incident.get(
+                "hunt_findings"
+            )
+
+            if not isinstance(
+                findings,
+                list,
+            ):
+                continue
+
+            for finding in findings:
+                if not isinstance(
+                    finding,
+                    dict,
+                ):
+                    continue
+
+                projected = {
+                    "incident_id": (
+                        incident_id
+                    ),
+                    "type": finding.get(
+                        "type"
+                    ),
+                    "timestamp": finding.get(
+                        "timestamp"
+                    ),
+                    "description": finding.get(
+                        "description"
+                    ),
+                    "action": finding.get(
+                        "action"
+                    ),
+                }
+
+                key = (
+                    projected[
+                        "incident_id"
+                    ],
+                    projected[
+                        "type"
+                    ],
+                    projected[
+                        "timestamp"
+                    ],
+                    projected[
+                        "action"
+                    ],
+                    projected[
+                        "description"
+                    ],
+                )
+
+                if key in seen:
+                    continue
+
+                seen.add(
+                    key
+                )
+
+                values.append(
+                    projected
+                )
 
         return values
 

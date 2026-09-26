@@ -6,6 +6,7 @@ from engine.presentation.reporting_contract import (
     CAMPAIGN_FIELDS,
     CASE_FIELDS,
     SAFE_ENTITY_TYPES,
+    SAFE_HUNT_FINDING_FIELDS,
     SAFE_THREAT_INTEL_FIELDS,
     TECHNICAL_INCIDENT_FIELDS,
     assert_export_safe,
@@ -169,6 +170,46 @@ class ReportReadModel:
                 ]:
                     incident.pop(
                         "threat_intel",
+                        None,
+                    )
+
+                raw_findings = row.get(
+                    "hunt_findings"
+                )
+
+                findings = []
+
+                if isinstance(
+                    raw_findings,
+                    (
+                        list,
+                        tuple,
+                    ),
+                ):
+                    for finding in raw_findings:
+                        if not isinstance(
+                            finding,
+                            dict,
+                        ):
+                            continue
+
+                        projected = project_fields(
+                            finding,
+                            SAFE_HUNT_FINDING_FIELDS,
+                        )
+
+                        if projected:
+                            findings.append(
+                                projected
+                            )
+
+                incident[
+                    "hunt_findings"
+                ] = findings
+
+                if not findings:
+                    incident.pop(
+                        "hunt_findings",
                         None,
                     )
 

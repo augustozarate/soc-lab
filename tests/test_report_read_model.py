@@ -717,3 +717,176 @@ def test_advanced_snapshot_sanitizes_campaign_entities():
             result
         )
     )
+
+
+def test_advanced_snapshot_projects_persisted_hunt_findings():
+    incidents = IncidentRepositoryStub(
+        [
+            {
+                "id": "INC-HUNT-1",
+                "hunt_findings": [
+                    {
+                        "type": (
+                            "MITRE_CONTEXT_HUNT"
+                        ),
+                        "timestamp": (
+                            "2026-09-26T20:00:00+00:00"
+                        ),
+                        "description": (
+                            "Related activity detected"
+                        ),
+                        "action": "ssh_login",
+                    }
+                ],
+            }
+        ]
+    )
+
+    model = ReportReadModel(
+        incident_repository=incidents,
+        campaign_repository=(
+            CampaignRepositoryStub([])
+        ),
+        case_manager=(
+            CaseManagerStub([])
+        ),
+    )
+
+    result = model.snapshot(
+        advanced=True
+    )
+
+    assert result[
+        "incidents"
+    ][0][
+        "hunt_findings"
+    ] == [
+        {
+            "type": (
+                "MITRE_CONTEXT_HUNT"
+            ),
+            "timestamp": (
+                "2026-09-26T20:00:00+00:00"
+            ),
+            "description": (
+                "Related activity detected"
+            ),
+            "action": "ssh_login",
+        }
+    ]
+
+
+def test_advanced_snapshot_sanitizes_persisted_hunt_findings():
+    incidents = IncidentRepositoryStub(
+        [
+            {
+                "id": "INC-HUNT-2",
+                "hunt_findings": [
+                    {
+                        "type": (
+                            "MITRE_CONTEXT_HUNT"
+                        ),
+                        "timestamp": "safe-time",
+                        "description": "safe",
+                        "action": "safe-action",
+                        "raw_event": {
+                            "password": (
+                                "DO-NOT-EXPORT"
+                            )
+                        },
+                        "internal_note": (
+                            "PRIVATE"
+                        ),
+                        "provider_debug": {
+                            "secret": "hidden"
+                        },
+                    },
+                    "invalid",
+                    None,
+                ],
+            }
+        ]
+    )
+
+    model = ReportReadModel(
+        incident_repository=incidents,
+        campaign_repository=(
+            CampaignRepositoryStub([])
+        ),
+        case_manager=(
+            CaseManagerStub([])
+        ),
+    )
+
+    result = model.snapshot(
+        advanced=True
+    )
+
+    findings = result[
+        "incidents"
+    ][0][
+        "hunt_findings"
+    ]
+
+    assert findings == [
+        {
+            "type": (
+                "MITRE_CONTEXT_HUNT"
+            ),
+            "timestamp": "safe-time",
+            "description": "safe",
+            "action": "safe-action",
+        }
+    ]
+
+    rendered = str(
+        result
+    )
+
+    assert "DO-NOT-EXPORT" not in rendered
+    assert "PRIVATE" not in rendered
+    assert "provider_debug" not in rendered
+    assert "raw_event" not in rendered
+    assert "password" not in rendered
+    assert "secret" not in rendered
+
+
+def test_technical_snapshot_never_exposes_hunt_findings():
+    incidents = IncidentRepositoryStub(
+        [
+            {
+                "id": "INC-HUNT-3",
+                "hunt_findings": [
+                    {
+                        "type": (
+                            "MITRE_CONTEXT_HUNT"
+                        ),
+                        "timestamp": "safe-time",
+                        "description": "safe",
+                        "action": "safe-action",
+                    }
+                ],
+            }
+        ]
+    )
+
+    model = ReportReadModel(
+        incident_repository=incidents,
+        campaign_repository=(
+            CampaignRepositoryStub([])
+        ),
+        case_manager=(
+            CaseManagerStub([])
+        ),
+    )
+
+    result = model.snapshot(
+        advanced=False
+    )
+
+    assert (
+        "hunt_findings"
+        not in result[
+            "incidents"
+        ][0]
+    )
