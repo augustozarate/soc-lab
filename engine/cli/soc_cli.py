@@ -361,6 +361,11 @@ class SOCConsole:
             )
         )
 
+        if output_format == "pdf":
+            raise ValueError(
+                "PDF reports must be exported"
+            )
+
         service = (
             self._require_report_service()
         )
@@ -841,7 +846,6 @@ class SOCConsole:
     📌 REPORTING
     report render <executive|technical|advanced>
     report render <type> --format json
-    report render <type> --format pdf
     report export <type> <filename>
     report export <type> <filename> --format json
     report export <type> <filename> --format pdf

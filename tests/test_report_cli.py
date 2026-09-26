@@ -315,31 +315,35 @@ def test_invalid_report_type_rejected():
         )
 
 
-def test_pdf_format_is_forwarded_to_service():
+def test_pdf_render_is_rejected_before_service():
     service = ReportServiceStub()
     console = make_console(
         service
     )
 
-    console.render_report(
-        args=[
-            "technical",
-        ],
-        flags={
-            "format": "pdf",
-        },
-    )
+    try:
+        console.render_report(
+            args=[
+                "technical",
+            ],
+            flags={
+                "format": "pdf",
+            },
+        )
 
-    assert service.render_calls == [
-        {
-            "report_type": "technical",
-            "output_format": "pdf",
-            "period": None,
-            "incident_limit": None,
-            "campaign_limit": None,
-            "case_limit": None,
-        }
-    ]
+    except ValueError as exc:
+        assert str(
+            exc
+        ) == (
+            "PDF reports must be exported"
+        )
+
+    else:
+        raise AssertionError(
+            "Interactive PDF render accepted"
+        )
+
+    assert service.render_calls == []
 
 
 def test_invalid_format_rejected_before_service():
@@ -525,3 +529,36 @@ def test_report_cli_does_not_need_managers_for_data_access():
     assert len(
         service.render_calls
     ) == 1
+
+
+def test_pdf_export_is_forwarded_to_service():
+    service = ReportServiceStub()
+    console = make_console(
+        service
+    )
+
+    result = console.export_report(
+        args=[
+            "advanced",
+            "soc-report",
+        ],
+        flags={
+            "format": "pdf",
+        },
+    )
+
+    assert service.export_calls == [
+        {
+            "report_type": "advanced",
+            "output_format": "pdf",
+            "basename": "soc-report",
+            "period": None,
+            "incident_limit": None,
+            "campaign_limit": None,
+            "case_limit": None,
+        }
+    ]
+
+    assert result.startswith(
+        "Report exported:"
+    )

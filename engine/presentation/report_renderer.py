@@ -183,6 +183,7 @@ class ReportRenderer:
             buffer,
             pagesize=A4,
             pageCompression=1,
+            invariant=1,
         )
 
         width, height = A4
@@ -357,31 +358,71 @@ class ReportRenderer:
         lines = []
         current = ""
 
+        def split_token(
+            token,
+        ):
+            chunks = []
+            chunk = ""
+
+            for character in token:
+                candidate = (
+                    chunk + character
+                )
+
+                width = stringWidth(
+                    candidate,
+                    font_name,
+                    font_size,
+                )
+
+                if (
+                    width <= max_width
+                    or not chunk
+                ):
+                    chunk = candidate
+                    continue
+
+                chunks.append(
+                    chunk
+                )
+
+                chunk = character
+
+            if chunk:
+                chunks.append(
+                    chunk
+                )
+
+            return chunks
+
         for word in words:
-            candidate = (
+            word_chunks = split_token(
                 word
-                if not current
-                else current + " " + word
             )
 
-            width = stringWidth(
-                candidate,
-                font_name,
-                font_size,
-            )
+            for chunk in word_chunks:
+                candidate = (
+                    chunk
+                    if not current
+                    else current + " " + chunk
+                )
 
-            if (
-                width <= max_width
-                or not current
-            ):
-                current = candidate
-                continue
+                width = stringWidth(
+                    candidate,
+                    font_name,
+                    font_size,
+                )
 
-            lines.append(
-                current
-            )
+                if width <= max_width:
+                    current = candidate
+                    continue
 
-            current = word
+                if current:
+                    lines.append(
+                        current
+                    )
+
+                current = chunk
 
         if current:
             lines.append(

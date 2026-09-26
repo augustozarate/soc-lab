@@ -488,3 +488,53 @@ def test_json_output_has_single_terminal_newline():
     assert not rendered.endswith(
         "\n\n"
     )
+
+
+def test_pdf_renderer_is_deterministic():
+    renderer = ReportRenderer()
+
+    document = executive_document()
+
+    first = renderer.render(
+        document,
+        "pdf",
+    )
+
+    second = renderer.render(
+        document,
+        "pdf",
+    )
+
+    assert first == second
+
+
+def test_pdf_wrap_splits_long_unbroken_token():
+    renderer = ReportRenderer()
+
+    token = "A" * 1200
+
+    lines = renderer._pdf_wrap(
+        token,
+        font_name="Helvetica",
+        font_size=9,
+        max_width=495,
+    )
+
+    assert len(lines) > 1
+
+    assert "".join(
+        lines
+    ) == token
+
+    from reportlab.pdfbase.pdfmetrics import (
+        stringWidth,
+    )
+
+    assert all(
+        stringWidth(
+            line,
+            "Helvetica",
+            9,
+        ) <= 495
+        for line in lines
+    )
