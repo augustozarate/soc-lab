@@ -33,6 +33,7 @@ logs/*.json
 logs/*.jsonl
 logs/*.log
 logs/dead_letter*
+logs/reports/
 
 # ==========================================
 # Temporary files

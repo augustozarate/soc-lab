@@ -4,6 +4,22 @@ from engine.bootstrap.container import Container
 from engine.orchestration.runtime.soc_runtime import SOCRuntime
 from engine.cli.soc_cli import SOCConsole
 
+from engine.presentation.report_application_service import (
+    ReportApplicationService,
+)
+from engine.presentation.report_document import (
+    ReportDocumentBuilder,
+)
+from engine.presentation.report_exporter import (
+    ReportExporter,
+)
+from engine.presentation.report_read_model import (
+    ReportReadModel,
+)
+from engine.presentation.report_renderer import (
+    ReportRenderer,
+)
+
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(
@@ -21,6 +37,11 @@ OUTPUT_DIR = os.path.join(
 DATA_DIR = os.path.join(
     BASE_DIR,
     "data"
+)
+
+REPORT_DIR = os.path.join(
+    OUTPUT_DIR,
+    "reports"
 )
 
 
@@ -71,6 +92,52 @@ def create_app():
         ),
 
         event_cache=[]
+    )
+
+    container.report_read_model = (
+        ReportReadModel(
+            incident_repository=(
+                container.incident_repository
+            ),
+            campaign_repository=(
+                container.campaign_repository
+            ),
+            case_manager=(
+                container.case_manager
+            ),
+        )
+    )
+
+    container.report_document_builder = (
+        ReportDocumentBuilder(
+            read_model=(
+                container.report_read_model
+            )
+        )
+    )
+
+    container.report_renderer = (
+        ReportRenderer()
+    )
+
+    container.report_exporter = (
+        ReportExporter(
+            REPORT_DIR
+        )
+    )
+
+    container.report_application_service = (
+        ReportApplicationService(
+            document_builder=(
+                container.report_document_builder
+            ),
+            renderer=(
+                container.report_renderer
+            ),
+            exporter=(
+                container.report_exporter
+            ),
+        )
     )
 
     cli = SOCConsole(
