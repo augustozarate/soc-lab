@@ -107,6 +107,7 @@ class SOCConsole:
         operator_console_controller=None,
         monitor_console_controller=None,
         report_application_service=None,
+        campaign_query_read_model=None,
     ):
         self.routes = {
             # BASE COMMANDS
@@ -187,6 +188,9 @@ class SOCConsole:
         )
         self.report_application_service = (
             report_application_service
+        )
+        self.campaign_query_read_model = (
+            campaign_query_read_model
         )
         self.parser = CommandParser(COMMAND_TREE)
         self._thread = None
@@ -436,6 +440,21 @@ class SOCConsole:
         return (
             "Report exported: "
             f"{destination}"
+        )
+
+    def _require_campaign_query_read_model(
+        self,
+    ):
+        if (
+            self.campaign_query_read_model
+            is None
+        ):
+            raise RuntimeError(
+                "Campaign queries are unavailable"
+            )
+
+        return (
+            self.campaign_query_read_model
         )
 
     def show_operator_console(
@@ -1108,27 +1127,23 @@ class SOCConsole:
         for mitre in ctx["mitre"]:
             print(f"        └── MITRE: {mitre}")
 
-    def list_campaigns(self, args=None, flags=None, data=None):
+    def list_campaigns(
+        self,
+        args=None,
+        flags=None,
+        data=None,
+    ):
+        if data is not None:
+            raise ValueError(
+                "Campaign commands cannot "
+                "consume pipeline input"
+            )
 
-        campaigns = self.campaign_tracker.campaigns
+        model = (
+            self._require_campaign_query_read_model()
+        )
 
-        if not campaigns:
-            print("No campaigns yet")
-            return
-
-        result = []
-
-        for cid, c in campaigns.items():
-            row = {
-                "id": cid,
-                "ip": c.get("entities", {}).get("ip", ["-"])[0],
-                "stage": c.get("stage"),
-                "risk": c.get("risk"),
-                "incidents": len(c.get("incidents", []))
-            }
-            result.append(row)
-
-        return result
+        return model.recent()
 
     def explain_incident(self, incident_id):
 
@@ -1305,78 +1320,202 @@ class SOCConsole:
                 f"Status: {case['status']} | Analyst: {case['assignee']}"
             )
 
-    def show_campaign(self, args, flags, data):
+    def show_campaign(
+        self,
+        args,
+        flags,
+        data,
+    ):
+        if data is not None:
+            raise ValueError(
+                "Campaign commands cannot "
+                "consume pipeline input"
+            )
+
         if not args:
-            print("Usage: campaign show <id>")
+            print(
+                "Usage: campaign show <id>"
+            )
             return
+
+        model = (
+            self._require_campaign_query_read_model()
+        )
 
         cid = args[0]
-        campaign = self.campaign_tracker.campaigns.get(cid)
+
+        campaign = model.get(
+            cid
+        )
 
         if not campaign:
-            print("Campaign not found")
+            print(
+                "Campaign not found"
+            )
             return
 
-        print("\n=== CAMPAIGN DETAILS ===\n")
+        print(
+            "\n=== CAMPAIGN DETAILS ===\n"
+        )
 
-        print(f"ID: {campaign['id']}")
-        print(f"Stage: {campaign.get('stage')}")
-        print(f"Risk: {campaign.get('risk')}")
+        print(
+            f"ID: {campaign['id']}"
+        )
+        print(
+            f"Stage: {campaign.get('stage')}"
+        )
+        print(
+            f"Risk: {campaign.get('risk')}"
+        )
 
-        ip = campaign.get("entities", {}).get("ip", [])
-        if ip:
-            print(f"Primary IP: {ip[0]}")
+        ips = (
+            campaign.get(
+                "entities",
+                {},
+            ).get(
+                "ip",
+                [],
+            )
+        )
 
-        print("\n--- Incidents ---")
-        for iid in campaign.get("incidents", []):
-            inc = self.im.get(iid)
+        if ips:
+            print(
+                f"Primary IP: {ips[0]}"
+            )
+
+        print(
+            "\n--- Incidents ---"
+        )
+
+        for iid in campaign.get(
+            "incidents",
+            [],
+        ):
+            inc = self.im.get(
+                iid
+            )
+
             if inc:
-                print(f"- {iid} ({inc.get('severity')})")
+                print(
+                    f"- {iid} "
+                    f"({inc.get('severity')})"
+                )
 
-        print("\n--- MITRE Techniques ---")
-        for t in campaign.get("techniques", []):
-            print(f"- {t}")
+        print(
+            "\n--- MITRE Techniques ---"
+        )
 
-        print("\n--- Timeline ---")
-        for t in campaign.get("timeline", []):
-            print(f"- {t}")
-        print("\n========================\n")
+        for tactic in campaign.get(
+            "tactics",
+            [],
+        ):
+            print(
+                f"- {tactic}"
+            )
 
-    def show_campaign_graph(self, args, flags, data):
+        print(
+            "\n--- Timeline ---"
+        )
+
+        for item in campaign.get(
+            "timeline",
+            [],
+        ):
+            print(
+                f"- {item}"
+            )
+
+        print(
+            "\n========================\n"
+        )
+
+    def show_campaign_graph(
+        self,
+        args,
+        flags,
+        data,
+    ):
+        if data is not None:
+            raise ValueError(
+                "Campaign commands cannot "
+                "consume pipeline input"
+            )
+
         if not args:
-            print("Usage: campaign graph <id>")
+            print(
+                "Usage: campaign graph <id>"
+            )
             return
+
+        model = (
+            self._require_campaign_query_read_model()
+        )
 
         cid = args[0]
 
-        campaign = self.campaign_tracker.campaigns.get(cid)
+        campaign = model.get(
+            cid
+        )
 
         if not campaign:
-            print("Campaign not found")
+            print(
+                "Campaign not found"
+            )
             return
 
-        # construir graph dinámico
-        from engine.correlación.campaign_graph import CampaignGraph
+        from engine.correlation.campaign_graph import (
+            CampaignGraph,
+        )
+
         graph = CampaignGraph()
-        graph.build_from_campaign(campaign, self.im)
 
-        view = graph.get_view(cid)
+        graph.build_from_campaign(
+            campaign,
+            self.im,
+        )
 
-        print("\n=== CAMPAIGN GRAPH ===\n")
+        view = graph.get_view(
+            cid
+        )
 
-        # NODES
-        print("[NODES]")
-        for nid, ntype in view["nodes"].items():
-            if cid == nid or any(cid in e for e in view["edges"] if nid in e):
-                print(f"{ntype}: {nid}")
+        print(
+            "\n=== CAMPAIGN GRAPH ===\n"
+        )
 
-        # EDGES (SOC STYLE)
-        print("\n[RELATIONSHIPS]\n")
+        print(
+            "[NODES]"
+        )
 
-        for src, dst, rel in view["edges"]:
-            print(f"{src} ──[{rel}]──> {dst}")
+        for nid, ntype in (
+            view["nodes"].items()
+        ):
+            if (
+                cid == nid
+                or any(
+                    cid in edge
+                    for edge
+                    in view["edges"]
+                    if nid in edge
+                )
+            ):
+                print(
+                    f"{ntype}: {nid}"
+                )
 
-        print("\n========================\n")
+        print(
+            "\n[RELATIONSHIPS]\n"
+        )
+
+        for src, dst, rel in (
+            view["edges"]
+        ):
+            print(
+                f"{src} ──[{rel}]──> {dst}"
+            )
+
+        print(
+            "\n========================\n"
+        )
 
     def suggest_command(self, cmd):
         commands = [c[0] for c in self.routes.keys()]

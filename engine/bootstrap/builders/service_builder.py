@@ -158,6 +158,9 @@ from engine.presentation.monitor_operator_read_model import (
 from engine.presentation.incident_query_read_model import (
     IncidentQueryReadModel
 )
+from engine.presentation.campaign_query_read_model import (
+    CampaignQueryReadModel
+)
 from engine.presentation.notification_channel_read_model import (
     NotificationChannelReadModel
 )
@@ -677,6 +680,14 @@ def build_services(container):
         IncidentQueryReadModel(
             incident_repository=(
                 container.incident_repository
+            )
+        )
+    )
+
+    container.campaign_query_read_model = (
+        CampaignQueryReadModel(
+            campaign_repository=(
+                container.campaign_repository
             )
         )
     )
