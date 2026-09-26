@@ -1060,3 +1060,335 @@ def test_selective_read_results_are_detached():
     assert source == {
         "local": "READY",
     }
+
+
+def test_runtime_exception_degrades_health_and_metrics_safely():
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise AssertionError(
+                "operator should not be reached"
+            )
+
+    class BrokenMetrics:
+
+        def read(self):
+            raise RuntimeError(
+                "runtime source unavailable"
+            )
+
+    class Channels:
+
+        def snapshot(self):
+            raise AssertionError(
+                "channels should not be reached"
+            )
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=(
+            BrokenMetrics()
+        ),
+        notification_channel_read_model=(
+            Channels()
+        ),
+    )
+
+    health = model.health()
+
+    assert health == {
+        "status": "UNKNOWN",
+        "reasons": [
+            "runtime metrics unavailable",
+        ],
+        "snapshot_age_seconds": None,
+    }
+
+    runtime = model.metrics()
+
+    assert runtime == {
+        "generated_at": None,
+        "uptime": "00:00:00",
+        "queue_depth": 0,
+        "checkpoint_lag": "0 B",
+        "events_read": 0,
+        "alerts_generated": 0,
+        "tasks_completed": 0,
+        "task_attempt_failures": 0,
+        "tasks_deduplicated": 0,
+        "avg_task_latency": "N/A",
+    }
+
+
+def test_channel_exception_degrades_to_unknown_surface():
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise AssertionError(
+                "operator should not be reached"
+            )
+
+    class Metrics:
+
+        def read(self):
+            raise AssertionError(
+                "runtime should not be reached"
+            )
+
+    class BrokenChannels:
+
+        def snapshot(self):
+            raise RuntimeError(
+                "channel source unavailable"
+            )
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=(
+            Metrics()
+        ),
+        notification_channel_read_model=(
+            BrokenChannels()
+        ),
+    )
+
+    assert model.channels() == {
+        "local": "UNKNOWN",
+        "email": "UNKNOWN",
+        "telegram": "UNKNOWN",
+        "webhook": "UNKNOWN",
+        "threema": "UNKNOWN",
+    }
+
+
+def test_malformed_channel_snapshot_degrades_to_unknown_surface():
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            return {
+                "summary": {},
+                "incidents": [],
+            }
+
+    class Metrics:
+
+        def read(self):
+            return None
+
+    class Channels:
+
+        def snapshot(self):
+            return None
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=(
+            Metrics()
+        ),
+        notification_channel_read_model=(
+            Channels()
+        ),
+    )
+
+    assert model.channels() == {
+        "local": "UNKNOWN",
+        "email": "UNKNOWN",
+        "telegram": "UNKNOWN",
+        "webhook": "UNKNOWN",
+        "threema": "UNKNOWN",
+    }
+
+
+def test_operator_exception_degrades_full_snapshot_safely():
+    class BrokenOperator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise RuntimeError(
+                "database unavailable"
+            )
+
+    class Metrics:
+
+        def read(self):
+            return {
+                "uptime_seconds": 1,
+                "counters": {},
+                "gauges": {},
+                "observations": {},
+            }
+
+    class Channels:
+
+        def snapshot(self):
+            return {
+                "local": "READY",
+            }
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            BrokenOperator()
+        ),
+        runtime_metrics_reader=(
+            Metrics()
+        ),
+        notification_channel_read_model=(
+            Channels()
+        ),
+    )
+
+    snapshot = model.snapshot()
+
+    assert snapshot["operator"] == {
+        "summary": {
+            "incidents": 0,
+            "high_critical": 0,
+            "campaigns": 0,
+            "max_risk": 0,
+        },
+        "incidents": [],
+    }
+
+    assert (
+        snapshot["channels"]["local"]
+        == "READY"
+    )
+
+
+def test_malformed_operator_snapshot_degrades_safely():
+    class Operator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            return None
+
+    class Metrics:
+
+        def read(self):
+            return None
+
+    class Channels:
+
+        def snapshot(self):
+            return {}
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            Operator()
+        ),
+        runtime_metrics_reader=(
+            Metrics()
+        ),
+        notification_channel_read_model=(
+            Channels()
+        ),
+    )
+
+    snapshot = model.snapshot()
+
+    assert snapshot["operator"] == {
+        "summary": {
+            "incidents": 0,
+            "high_critical": 0,
+            "campaigns": 0,
+            "max_risk": 0,
+        },
+        "incidents": [],
+    }
+
+
+def test_all_monitor_sources_can_fail_without_breaking_snapshot():
+    class BrokenOperator:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            raise RuntimeError(
+                "database unavailable"
+            )
+
+    class BrokenMetrics:
+
+        def read(self):
+            raise RuntimeError(
+                "metrics unavailable"
+            )
+
+    class BrokenChannels:
+
+        def snapshot(self):
+            raise RuntimeError(
+                "channels unavailable"
+            )
+
+    model = MonitorReadModel(
+        monitor_operator_read_model=(
+            BrokenOperator()
+        ),
+        runtime_metrics_reader=(
+            BrokenMetrics()
+        ),
+        notification_channel_read_model=(
+            BrokenChannels()
+        ),
+    )
+
+    snapshot = model.snapshot()
+
+    assert snapshot == {
+        "operator": {
+            "summary": {
+                "incidents": 0,
+                "high_critical": 0,
+                "campaigns": 0,
+                "max_risk": 0,
+            },
+            "incidents": [],
+        },
+        "runtime": {
+            "generated_at": None,
+            "uptime": "00:00:00",
+            "queue_depth": 0,
+            "checkpoint_lag": "0 B",
+            "events_read": 0,
+            "alerts_generated": 0,
+            "tasks_completed": 0,
+            "task_attempt_failures": 0,
+            "tasks_deduplicated": 0,
+            "avg_task_latency": "N/A",
+        },
+        "health": {
+            "status": "UNKNOWN",
+            "reasons": [
+                "runtime metrics unavailable",
+            ],
+            "snapshot_age_seconds": None,
+        },
+        "channels": {
+            "local": "UNKNOWN",
+            "email": "UNKNOWN",
+            "telegram": "UNKNOWN",
+            "webhook": "UNKNOWN",
+            "threema": "UNKNOWN",
+        },
+    }

@@ -26,13 +26,84 @@ class MonitorReadModel:
             notification_channel_read_model
         )
 
+    @staticmethod
+    def _unknown_operator():
+        return {
+            "summary": {
+                "incidents": 0,
+                "high_critical": 0,
+                "campaigns": 0,
+                "max_risk": 0,
+            },
+            "incidents": [],
+        }
+
+    @staticmethod
+    def _unknown_channels():
+        return {
+            "local": "UNKNOWN",
+            "email": "UNKNOWN",
+            "telegram": "UNKNOWN",
+            "webhook": "UNKNOWN",
+            "threema": "UNKNOWN",
+        }
+
+    def _operator_snapshot(
+        self,
+        incident_limit,
+    ):
+        try:
+            operator = (
+                self.monitor_operator_read_model
+                .snapshot(
+                    incident_limit=(
+                        incident_limit
+                    )
+                )
+            )
+        except Exception:
+            return self._unknown_operator()
+
+        if not isinstance(
+            operator,
+            dict,
+        ):
+            return self._unknown_operator()
+
+        summary = operator.get(
+            "summary"
+        )
+
+        incidents = operator.get(
+            "incidents"
+        )
+
+        if (
+            not isinstance(
+                summary,
+                dict,
+            )
+            or not isinstance(
+                incidents,
+                list,
+            )
+        ):
+            return self._unknown_operator()
+
+        return deepcopy(
+            operator
+        )
+
     def _runtime_views(
         self,
     ):
-        metrics_snapshot = (
-            self.runtime_metrics_reader
-            .read()
-        )
+        try:
+            metrics_snapshot = (
+                self.runtime_metrics_reader
+                .read()
+            )
+        except Exception:
+            metrics_snapshot = None
 
         health = RuntimeHealthAssessor(
             metrics_snapshot
@@ -72,10 +143,21 @@ class MonitorReadModel:
     def channels(
         self,
     ):
-        channels = (
-            self.notification_channel_read_model
-            .snapshot()
-        )
+        try:
+            channels = (
+                self.notification_channel_read_model
+                .snapshot()
+            )
+        except Exception:
+            channels = None
+
+        if not isinstance(
+            channels,
+            dict,
+        ):
+            channels = (
+                self._unknown_channels()
+            )
 
         return deepcopy(
             channels
@@ -86,8 +168,7 @@ class MonitorReadModel:
         incident_limit=10,
     ):
         operator = (
-            self.monitor_operator_read_model
-            .snapshot(
+            self._operator_snapshot(
                 incident_limit=(
                     incident_limit
                 )
