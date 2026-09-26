@@ -4,6 +4,9 @@ from datetime import datetime
 
 class CampaignRepository:
 
+    DEFAULT_QUERY_LIMIT = 20
+    MAX_QUERY_LIMIT = 100
+
     def __init__(self, db):
         self.db = db
 
@@ -84,6 +87,63 @@ class CampaignRepository:
             json.loads(row["data_json"])
             for row in rows
         ]
+
+    def list_recent(
+        self,
+        limit=DEFAULT_QUERY_LIMIT,
+    ):
+        bounded_limit = self._bounded_limit(
+            limit
+        )
+
+        if bounded_limit == 0:
+            return []
+
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT data_json
+                FROM campaigns
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (
+                    bounded_limit,
+                ),
+            ).fetchall()
+
+        return [
+            json.loads(
+                row["data_json"]
+            )
+            for row in rows
+        ]
+
+    @classmethod
+    def _bounded_limit(
+        cls,
+        limit,
+    ):
+        try:
+            normalized = int(
+                limit
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            normalized = (
+                cls.DEFAULT_QUERY_LIMIT
+            )
+
+        if normalized <= 0:
+            return 0
+
+        return min(
+            normalized,
+            cls.MAX_QUERY_LIMIT,
+        )
 
     def summary_stats(self):
 

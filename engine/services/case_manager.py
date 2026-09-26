@@ -5,6 +5,9 @@ from engine.cli.console_io import safe_print
 
 class CaseManager:
 
+    DEFAULT_QUERY_LIMIT = 20
+    MAX_QUERY_LIMIT = 100
+
     def __init__(self):
         self.cases = {}
 
@@ -98,6 +101,64 @@ class CaseManager:
     # -------------------------
     def list_cases(self):
         return list(self.cases.values())
+
+    # -------------------------
+    def list_recent(
+        self,
+        limit=DEFAULT_QUERY_LIMIT,
+    ):
+        bounded_limit = self._bounded_limit(
+            limit
+        )
+
+        if bounded_limit == 0:
+            return []
+
+        ordered = sorted(
+            self.cases.values(),
+            key=lambda case: str(
+                case.get(
+                    "created",
+                    ""
+                )
+            ),
+            reverse=True,
+        )
+
+        return [
+            dict(
+                case
+            )
+            for case in ordered[
+                :bounded_limit
+            ]
+        ]
+
+    @classmethod
+    def _bounded_limit(
+        cls,
+        limit,
+    ):
+        try:
+            normalized = int(
+                limit
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            normalized = (
+                cls.DEFAULT_QUERY_LIMIT
+            )
+
+        if normalized <= 0:
+            return 0
+
+        return min(
+            normalized,
+            cls.MAX_QUERY_LIMIT,
+        )
 
     # -------------------------
     def _log(self, case, event):
