@@ -44,6 +44,9 @@ The repository also contains components for:
 - runtime metrics
 - health assessment
 - SOC monitoring
+- bounded read-only query models
+- executive, technical and advanced SOC reporting
+- JSON, Markdown and native PDF report export
 
 ## Requirements
 
@@ -54,6 +57,7 @@ The current development baseline has been validated with:
 - requests 2.31.0
 - rich 13.7.1
 - python-dotenv 1.x
+- reportlab 4.5.1
 
 Install the declared Python dependencies with:
 
@@ -214,6 +218,46 @@ The `engine/` package contains the core application architecture,
 including bootstrap, CLI, correlation, orchestration, services,
 storage and telemetry components.
 
+### Read-only query boundaries
+
+Interactive monitoring and query commands are separated from mutable
+runtime internals through presentation-layer read models.
+
+Current bounded query paths include:
+
+- recent incident queries
+- monitor incident projections
+- campaign list/detail queries
+- reporting snapshots
+
+Campaign CLI commands such as `campaign list`, `campaign show` and
+`campaign graph` read persisted campaign state through
+`CampaignQueryReadModel` rather than directly accessing the mutable
+`CampaignTracker` dictionaries.
+
+The same read boundary is used when campaign context is required by
+incident graph, AI and story CLI paths.
+
+### Reporting
+
+The reporting layer supports three profiles:
+
+- executive
+- technical
+- advanced
+
+Reports can be rendered as JSON or Markdown and exported as JSON,
+Markdown or PDF.
+
+Report projections use explicit allowlists so raw events, payloads,
+credentials and provider-specific internal fields are not serialized
+directly. Advanced threat-intelligence and hunting data are sourced
+from persisted incident state rather than executing live hunting
+during report generation.
+
+PDF generation is native, deterministic and export-only at the CLI
+boundary.
+
 ## Security and Repository Hygiene
 
 The repository is configured to exclude local secrets and generated
@@ -244,7 +288,8 @@ This project is under active development.
 
 At the current stage:
 
-- automated pytest-based test infrastructure has not yet been added
+- automated pytest-based regression coverage is available and is used
+  as a merge gate for validated feature work
 - external threat-intelligence providers require user-supplied API keys
 - external enrichment depends on network availability
 - the current reproducibility baseline has been validated with
@@ -268,6 +313,9 @@ Recent development work has focused on:
 - offline-resilient threat intelligence
 - repository hygiene
 - reproducible environment setup
+- read-only operator and monitor query boundaries
+- bounded incident and campaign read models
+- SOC reporting with safe projections and deterministic PDF export
 
 ## Responsible Use
 
