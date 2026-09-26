@@ -1108,9 +1108,18 @@ class SOCConsole:
 
         if not incident:
             # intentar como campaign
-            campaign = self.campaign_tracker.campaigns.get(incident_id)
+            campaign = (
+                self._require_campaign_query_read_model()
+                .get(
+                    incident_id
+                )
+            )
+
             if campaign:
-                print("That is a CAMPAIGN ID. Use: campaign show <id>")
+                print(
+                    "That is a CAMPAIGN ID. "
+                    "Use: campaign show <id>"
+                )
                 return
 
         ctx = self.threat_graph.get_incident_context(incident_id)
@@ -1151,9 +1160,18 @@ class SOCConsole:
 
         if not incident:
             # intentar como campaign
-            campaign = self.campaign_tracker.campaigns.get(incident_id)
+            campaign = (
+                self._require_campaign_query_read_model()
+                .get(
+                    incident_id
+                )
+            )
+
             if campaign:
-                print("That is a CAMPAIGN ID. Use: campaign show <id>")
+                print(
+                    "That is a CAMPAIGN ID. "
+                    "Use: campaign show <id>"
+                )
                 return
 
         analysis = incident.get("ai_analysis")
@@ -1194,7 +1212,14 @@ class SOCConsole:
 
         campaign = None
         if incident.get("campaign_id"):
-            campaign = self.campaign_tracker.campaigns.get(incident["campaign_id"])
+            campaign = (
+                self._require_campaign_query_read_model()
+                .get(
+                    incident[
+                        "campaign_id"
+                    ]
+                )
+            )
 
         response = self.ai.ask(
             incident,
@@ -1212,14 +1237,32 @@ class SOCConsole:
 
         if not incident:
             # intentar como campaign
-            campaign = self.campaign_tracker.campaigns.get(incident_id)
+            campaign = (
+                self._require_campaign_query_read_model()
+                .get(
+                    incident_id
+                )
+            )
+
             if campaign:
-                print("That is a CAMPAIGN ID. Use: campaign show <id>")
+                print(
+                    "That is a CAMPAIGN ID. "
+                    "Use: campaign show <id>"
+                )
                 return
 
         campaign = None
-        if incident.get("campaign_id") and self.campaign_tracker:
-            campaign = self.campaign_tracker.campaigns.get(incident["campaign_id"])
+        if incident.get(
+            "campaign_id"
+        ):
+            campaign = (
+                self._require_campaign_query_read_model()
+                .get(
+                    incident[
+                        "campaign_id"
+                    ]
+                )
+            )
 
         print("\n=== AI CHAT SESSION STARTED ===")
         print("Type 'exit' to leave\n")
@@ -1296,9 +1339,18 @@ class SOCConsole:
 
         if not incident:
             # intentar como campaign
-            campaign = self.campaign_tracker.campaigns.get(incident_id)
+            campaign = (
+                self._require_campaign_query_read_model()
+                .get(
+                    incident_id
+                )
+            )
+
             if campaign:
-                print("That is a CAMPAIGN ID. Use: campaign show <id>")
+                print(
+                    "That is a CAMPAIGN ID. "
+                    "Use: campaign show <id>"
+                )
                 return
 
         story = incident.get("attack_story")
