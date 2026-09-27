@@ -1221,48 +1221,6 @@ class SOCConsole:
 
         return model.recent()
 
-    def explain_incident(self, incident_id):
-
-        incident = self.im.get(incident_id)
-
-        if not incident:
-            # intentar como campaign
-            campaign = (
-                self._require_campaign_query_read_model()
-                .get(
-                    incident_id
-                )
-            )
-
-            if campaign:
-                print(
-                    "That is a CAMPAIGN ID. "
-                    "Use: campaign show <id>"
-                )
-                return
-
-        analysis = incident.get("ai_analysis")
-
-        if not analysis:
-            print("No AI analysis available")
-            return
-
-        print("\n=== AI ANALYSIS ===\n")
-
-        print(f"IP: {analysis['ip']}")
-        print(f"Severity: {analysis['severity']}")
-        print(f"Tactic: {analysis['tactic']}")
-        print(f"Technique: {analysis['technique']}")
-
-        print("\nSummary:")
-        for s in analysis["summary"]:
-            print(f"- {s}")
-
-        print("\nRecommended Actions:")
-        for a in analysis["recommended_actions"]:
-            print(f"- {a}")
-
-        print(f"\nConfidence: {analysis['confidence']}")
 
     def ask_ai(self, args, flags, data):
         if len(args) < 2:
@@ -1298,62 +1256,6 @@ class SOCConsole:
         print("\n=== AI RESPONSE ===\n")
         print(response)
 
-    def ai_chat(self, incident_id):
-
-        incident = self.im.get(incident_id)
-
-        if not incident:
-            # intentar como campaign
-            campaign = (
-                self._require_campaign_query_read_model()
-                .get(
-                    incident_id
-                )
-            )
-
-            if campaign:
-                print(
-                    "That is a CAMPAIGN ID. "
-                    "Use: campaign show <id>"
-                )
-                return
-
-        campaign = None
-        if incident.get(
-            "campaign_id"
-        ):
-            campaign = (
-                self._require_campaign_query_read_model()
-                .get(
-                    incident[
-                        "campaign_id"
-                    ]
-                )
-            )
-
-        print("\n=== AI CHAT SESSION STARTED ===")
-        print("Type 'exit' to leave\n")
-
-        while True:
-            try:
-                q = input("ai> ").strip()
-
-                if q.lower() in ["exit", "quit"]:
-                    print("Exiting AI chat\n")
-                    break
-
-                response = self.ai.ask(
-                    incident,
-                    q,
-                    self.threat_graph,
-                    campaign
-                )
-
-                print(response)
-
-            except KeyboardInterrupt:
-                print("\nExiting AI chat\n")
-                break
 
     def ai_help(self, args=None, flags=None, data=None):
         print("AI commands:")

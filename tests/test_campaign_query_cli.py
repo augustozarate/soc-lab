@@ -573,35 +573,6 @@ def test_show_graph_campaign_detection_uses_read_model(
     )
 
 
-def test_explain_incident_campaign_detection_uses_read_model(
-    capsys,
-):
-    model = CampaignReadModelStub()
-
-    console, _, _ = (
-        make_context_console(
-            model
-        )
-    )
-
-    console.explain_incident(
-        "CMP-1"
-    )
-
-    assert model.get_calls == [
-        "CMP-1"
-    ]
-
-    output = (
-        capsys
-        .readouterr()
-        .out
-    )
-
-    assert (
-        "That is a CAMPAIGN ID"
-        in output
-    )
 
 
 def test_ask_ai_uses_campaign_read_model(
@@ -670,64 +641,8 @@ def test_ask_ai_uses_campaign_read_model(
     )
 
 
-def test_ai_chat_campaign_detection_uses_read_model(
-    capsys,
-):
-    model = CampaignReadModelStub()
-
-    console, ai, _ = (
-        make_context_console(
-            model
-        )
-    )
-
-    console.ai_chat(
-        "CMP-1"
-    )
-
-    assert model.get_calls == [
-        "CMP-1"
-    ]
-
-    assert ai.calls == []
-
-    output = (
-        capsys
-        .readouterr()
-        .out
-    )
-
-    assert (
-        "That is a CAMPAIGN ID"
-        in output
-    )
 
 
-def test_ai_chat_campaign_context_uses_read_model(
-    monkeypatch,
-):
-    model = CampaignReadModelStub()
-
-    console, ai, _ = (
-        make_context_console(
-            model
-        )
-    )
-
-    monkeypatch.setattr(
-        "builtins.input",
-        lambda _prompt: "exit",
-    )
-
-    console.ai_chat(
-        "INC-AI"
-    )
-
-    assert model.get_calls == [
-        "CMP-1"
-    ]
-
-    assert ai.calls == []
 
 
 def test_story_campaign_detection_uses_read_model(
