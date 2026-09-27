@@ -1088,74 +1088,7 @@ class SOCConsole:
 
     # =========================
 
-    def show_timeline(self, incident_id):
-
-        for inc in self.im.incidents.values():
-            if inc["id"] == incident_id:
-
-                print("\n=== ATTACK TIMELINE ===")
-
-                for event in inc["timeline"]:
-                    print(f"{event['time']} -> {event['event']}")
-
-                return
-
-        print("Incident not found")
-
     # =========================
-
-    def hunt_ip(self, ip):
-
-        for inc in self.im.incidents.values():
-            if inc["ip"] == ip:
-                print(f"FOUND INCIDENT {inc['id']} (Severity {inc['severity']})")
-                return
-
-        print("No incidents for that IP")
-
-    def pivot_ip(self, ip):
-
-        print(f"\n=== PIVOT: IP {ip} ===\n")
-
-        # Incidents
-        print("Incidents:")
-        for inc in self.im.incidents.values():
-            if inc["ip"] == ip:
-                print(f"- {inc['id']} ({inc['severity']})")
-
-        # Cases
-        print("\nCases:")
-        for cid, case in self.cm.cases.items():
-            if case["incident_id"]:
-                inc = self.im.get(case["incident_id"])
-                if inc and inc["ip"] == ip:
-                    print(f"- {cid} ({case['status']})")
-
-        # Events
-        print("\nRecent Events:")
-        for event in self.event_cache[-10:]:
-            if event.get("ip") == ip:
-                print(f"- {event.get('message', 'unknown')}")
-
-    def enrich_ip(self, ip):
-
-        print(f"\n=== ENRICHMENT: {ip} ===\n")
-
-        # Threat Intel
-        for inc in self.im.incidents.values():
-            if inc["ip"] == ip:
-                intel = inc.get("alerts", [{}])[0].get("threat_intel", {})
-                print(f"Reputation: {intel.get('reputation')}")
-                print(f"Confidence: {intel.get('confidence')}")
-                break
-
-        # Threat Memory
-        print("\nObserved Tactics:")
-        # si guardas en threat_memory como dict[ip] = [tactics]
-        # ajusta según tu implementación
-        # ejemplo:
-        # tactics = threat_memory.get(ip)
-        # for t in tactics: print(t)
 
     def print_case_report(self, report):
 
