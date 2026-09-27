@@ -730,6 +730,70 @@ class NoGetIncidentManager:
         )
 
 
+class PublicMemoryOnlyStub:
+    def __init__(self):
+        self.calls = []
+
+    def get_ip_context(self, ip):
+        self.calls.append(ip)
+        return {
+            "seen": 3,
+            "tactics": ["T1110"],
+            "max_risk": 80,
+        }
+
+
+class AIWithPublicMemoryOnlyStub:
+    def __init__(self):
+        self.memory = PublicMemoryOnlyStub()
+
+
+def test_enrich_uses_public_memory_api():
+    ai = AIWithPublicMemoryOnlyStub()
+
+    console = SOCConsole(
+        ai_analyst=ai,
+    )
+
+    source = [
+        {
+            "ip": "10.0.0.5",
+            "event": "ssh",
+        },
+        {
+            "event": "local",
+        },
+    ]
+
+    result = console.enrich(
+        [],
+        {},
+        source,
+    )
+
+    assert ai.memory.calls == [
+        "10.0.0.5",
+    ]
+
+    assert result == [
+        {
+            "ip": "10.0.0.5",
+            "event": "ssh",
+            "intel": {
+                "seen": 3,
+                "tactics": ["T1110"],
+                "max_risk": 80,
+            },
+        },
+        {
+            "event": "local",
+        },
+    ]
+
+    assert result is not source
+    assert result[0] is not source[0]
+
+
 def test_ask_ai_uses_single_incident_controller():
     controller = (
         SingleIncidentControllerStub(

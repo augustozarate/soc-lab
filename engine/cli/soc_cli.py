@@ -809,7 +809,11 @@ class SOCConsole:
             ip = new_d.get("ip")
 
             if ip:
-                new_d["intel"] = getattr(self.ai.memory, "memory", {}).get(ip, {})
+                new_d["intel"] = (
+                    self.ai.memory.get_ip_context(
+                        ip
+                    )
+                )
 
             enriched.append(new_d)
 
