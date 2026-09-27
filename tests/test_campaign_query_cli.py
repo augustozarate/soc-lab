@@ -952,3 +952,61 @@ def test_show_campaign_uses_single_incident_controller(
         "INC-1 (HIGH)"
         in capsys.readouterr().out
     )
+
+
+def test_campaign_graph_uses_controller_backed_incident_reader(
+    capsys,
+):
+    controller = (
+        SingleIncidentControllerStub(
+            {
+                "INC-1": {
+                    "id": "INC-1",
+                    "severity": "HIGH",
+                    "ip": "10.0.0.10",
+                    "mitre": {
+                        "technique_id": "T1021",
+                    },
+                }
+            }
+        )
+    )
+
+    console = SOCConsole(
+        incident_manager=(
+            NoGetIncidentManager()
+        ),
+        case_manager=CaseManagerStub(),
+        monitor_console_controller=(
+            controller
+        ),
+        campaign_query_read_model=(
+            MigrationCampaignQueryReadModelStub()
+        ),
+    )
+
+    console.show_campaign_graph(
+        ["CAMP-1"],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-1"
+    ]
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "CAMPAIGN GRAPH"
+        in output
+    )
+
+    assert (
+        "INCIDENT: INC-1"
+        in output
+    )

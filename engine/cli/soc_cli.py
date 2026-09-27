@@ -93,6 +93,23 @@ READ_ONLY_SHORTCUTS = {
 }
 
 
+class _CLIIncidentReader:
+
+    def __init__(
+        self,
+        query,
+    ):
+        self.query = query
+
+    def get(
+        self,
+        incident_id,
+    ):
+        return self.query(
+            incident_id
+        )
+
+
 class SOCConsole:
 
     def __init__(
@@ -1584,9 +1601,15 @@ class SOCConsole:
 
         graph = CampaignGraph()
 
+        incident_reader = (
+            _CLIIncidentReader(
+                self._query_incident_for_cli
+            )
+        )
+
         graph.build_from_campaign(
             campaign,
-            self.im,
+            incident_reader,
         )
 
         view = graph.get_view(
