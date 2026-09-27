@@ -135,12 +135,6 @@ def make_console(
     )
 
     return SOCConsole(
-        incident_manager=(
-            incident_manager
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         campaign_tracker=(
             TrackerTrap()
         ),
@@ -514,12 +508,6 @@ def make_context_console(
     graph = ThreatGraphStub()
 
     console = SOCConsole(
-        incident_manager=(
-            incident_manager
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         campaign_tracker=(
             TrackerTrap()
         ),
@@ -789,10 +777,6 @@ def test_ask_ai_uses_single_incident_controller():
     ai = AIStub()
 
     console = SOCConsole(
-        incident_manager=(
-            NoGetIncidentManager()
-        ),
-        case_manager=CaseManagerStub(),
         ai_analyst=ai,
         monitor_console_controller=(
             controller
@@ -841,10 +825,6 @@ def test_show_campaign_uses_single_incident_controller(
     )
 
     console = SOCConsole(
-        incident_manager=(
-            NoGetIncidentManager()
-        ),
-        case_manager=CaseManagerStub(),
         monitor_console_controller=(
             controller
         ),
@@ -888,10 +868,6 @@ def test_campaign_graph_uses_controller_backed_incident_reader(
     )
 
     console = SOCConsole(
-        incident_manager=(
-            NoGetIncidentManager()
-        ),
-        case_manager=CaseManagerStub(),
         monitor_console_controller=(
             controller
         ),

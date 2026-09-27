@@ -51,12 +51,6 @@ def make_console(
     service=None,
 ):
     return SOCConsole(
-        incident_manager=(
-            IncidentManagerStub()
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         report_application_service=(
             service
         ),
@@ -509,8 +503,6 @@ def test_report_cli_does_not_need_managers_for_data_access():
     service = ReportServiceStub()
 
     console = SOCConsole(
-        incident_manager=None,
-        case_manager=None,
         report_application_service=(
             service
         ),

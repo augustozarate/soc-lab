@@ -37,12 +37,6 @@ def make_console(
     controller=None,
 ):
     return SOCConsole(
-        incident_manager=(
-            IncidentManagerStub()
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         operator_console_controller=(
             controller
         ),
@@ -185,12 +179,6 @@ def make_routed_operator_console():
     )
 
     console = SOCConsole(
-        incident_manager=(
-            StrictIncidentManager()
-        ),
-        case_manager=(
-            StrictCaseManager()
-        ),
         operator_console_controller=(
             controller
         ),

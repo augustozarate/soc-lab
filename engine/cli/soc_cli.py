@@ -114,8 +114,6 @@ class SOCConsole:
 
     def __init__(
         self,
-        incident_manager,
-        case_manager,
         simulator=None,
         event_cache=None,
         threat_graph=None,
@@ -190,8 +188,6 @@ class SOCConsole:
             ("group", None): self.group,
         }
 
-        self.im = incident_manager
-        self.cm = case_manager
         self.simulator = simulator
         self.event_cache = event_cache or []
         self.threat_graph = threat_graph

@@ -141,13 +141,13 @@ def create_app():
     )
 
     cli = SOCConsole(
-        container.incident_manager,
-        container.case_manager,
-        container.simulator,
-        container.event_cache,
-        container.threat_graph,
-        container.campaign_tracker,
-        container.ai_analyst,
+        simulator=container.simulator,
+        event_cache=container.event_cache,
+        threat_graph=container.threat_graph,
+        campaign_tracker=(
+            container.campaign_tracker
+        ),
+        ai_analyst=container.ai_analyst,
         operator_console_controller=(
             container.operator_console_controller
         ),

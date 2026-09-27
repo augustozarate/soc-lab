@@ -45,12 +45,6 @@ def make_console(
     controller=None,
 ):
     return SOCConsole(
-        incident_manager=(
-            IncidentManagerStub()
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         monitor_console_controller=(
             controller
         ),
@@ -181,12 +175,6 @@ def make_query_console():
     )
 
     console = SOCConsole(
-        incident_manager=(
-            IncidentManagerStub()
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         monitor_console_controller=(
             controller
         ),
@@ -301,12 +289,6 @@ def make_incident_query_console():
     )
 
     console = SOCConsole(
-        incident_manager=(
-            IncidentManagerStub()
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         monitor_console_controller=(
             controller
         ),
@@ -995,12 +977,6 @@ def make_routed_incident_console():
     )
 
     console = SOCConsole(
-        incident_manager=(
-            StrictIncidentManager()
-        ),
-        case_manager=(
-            CaseManagerStub()
-        ),
         monitor_console_controller=(
             controller
         ),
@@ -1177,10 +1153,6 @@ def make_single_incident_route_console():
     )
 
     console = SOCConsole(
-        incident_manager=(
-            NoGetIncidentManager()
-        ),
-        case_manager=CaseManagerStub(),
         monitor_console_controller=(
             controller
         ),
