@@ -359,3 +359,123 @@ def test_container_constructs_incident_query_read_model(
         )
         == []
     )
+
+
+class SingleIncidentRepositoryStub:
+
+    def __init__(self):
+        self.get_calls = []
+        self.source = {
+            "id": "INC-GET-001",
+            "severity": "HIGH",
+            "timeline": [
+                {
+                    "time": "2026-01-01T00:00:00",
+                    "event": "TEST",
+                }
+            ],
+        }
+
+    def get(
+        self,
+        incident_id,
+    ):
+        self.get_calls.append(
+            incident_id
+        )
+
+        if (
+            incident_id
+            != self.source["id"]
+        ):
+            return None
+
+        return self.source
+
+
+def build_single_incident_model():
+    repository = (
+        SingleIncidentRepositoryStub()
+    )
+
+    model = (
+        IncidentQueryReadModel(
+            incident_repository=repository
+        )
+    )
+
+    return (
+        model,
+        repository,
+    )
+
+
+def test_get_delegates_to_repository_by_id():
+    model, repository = (
+        build_single_incident_model()
+    )
+
+    result = model.get(
+        "INC-GET-001"
+    )
+
+    assert repository.get_calls == [
+        "INC-GET-001"
+    ]
+
+    assert result == {
+        "id": "INC-GET-001",
+        "severity": "HIGH",
+        "timeline": [
+            {
+                "time": "2026-01-01T00:00:00",
+                "event": "TEST",
+            }
+        ],
+    }
+
+
+def test_get_returns_none_for_missing_incident():
+    model, repository = (
+        build_single_incident_model()
+    )
+
+    result = model.get(
+        "INC-MISSING"
+    )
+
+    assert repository.get_calls == [
+        "INC-MISSING"
+    ]
+
+    assert result is None
+
+
+def test_get_result_is_detached_from_repository():
+    model, repository = (
+        build_single_incident_model()
+    )
+
+    result = model.get(
+        "INC-GET-001"
+    )
+
+    result["severity"] = "LOW"
+
+    result["timeline"][0][
+        "event"
+    ] = "MUTATED"
+
+    assert (
+        repository.source[
+            "severity"
+        ]
+        == "HIGH"
+    )
+
+    assert (
+        repository.source[
+            "timeline"
+        ][0]["event"]
+        == "TEST"
+    )

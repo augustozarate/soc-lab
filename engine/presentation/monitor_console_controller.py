@@ -50,6 +50,26 @@ class MonitorConsoleController:
             self.read_model.metrics()
         )
 
+    def query_incident(
+        self,
+        incident_id,
+    ):
+        if (
+            self.incident_query_read_model
+            is None
+        ):
+            raise RuntimeError(
+                "Incident query surface "
+                "is unavailable"
+            )
+
+        return deepcopy(
+            self.incident_query_read_model
+            .get(
+                incident_id
+            )
+        )
+
     def query_incidents(
         self,
         limit=20,

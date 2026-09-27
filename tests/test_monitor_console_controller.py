@@ -595,3 +595,144 @@ def test_selective_controller_queries_never_use_full_snapshot():
     assert controller.query_metrics() == {
         "queue_depth": 2,
     }
+
+
+class SingleIncidentQueryReadModelStub:
+
+    def __init__(self):
+        self.get_calls = []
+        self.source = {
+            "id": "INC-GET-001",
+            "severity": "HIGH",
+            "attack_story": {
+                "summary": "test",
+            },
+        }
+
+    def get(
+        self,
+        incident_id,
+    ):
+        self.get_calls.append(
+            incident_id
+        )
+
+        if (
+            incident_id
+            != self.source["id"]
+        ):
+            return None
+
+        return self.source
+
+
+def make_single_incident_query_controller():
+    query_model = (
+        SingleIncidentQueryReadModelStub()
+    )
+
+    controller = (
+        MonitorConsoleController(
+            read_model=QueryReadModel(),
+            renderer=object(),
+            incident_query_read_model=(
+                query_model
+            ),
+        )
+    )
+
+    return (
+        controller,
+        query_model,
+    )
+
+
+def test_query_incident_delegates_to_single_get_read_model():
+    controller, query_model = (
+        make_single_incident_query_controller()
+    )
+
+    result = controller.query_incident(
+        "INC-GET-001"
+    )
+
+    assert query_model.get_calls == [
+        "INC-GET-001"
+    ]
+
+    assert result == {
+        "id": "INC-GET-001",
+        "severity": "HIGH",
+        "attack_story": {
+            "summary": "test",
+        },
+    }
+
+
+def test_query_incident_returns_none_for_missing_incident():
+    controller, query_model = (
+        make_single_incident_query_controller()
+    )
+
+    result = controller.query_incident(
+        "INC-MISSING"
+    )
+
+    assert query_model.get_calls == [
+        "INC-MISSING"
+    ]
+
+    assert result is None
+
+
+def test_query_incident_result_is_detached():
+    controller, query_model = (
+        make_single_incident_query_controller()
+    )
+
+    result = controller.query_incident(
+        "INC-GET-001"
+    )
+
+    result[
+        "attack_story"
+    ][
+        "summary"
+    ] = "mutated"
+
+    assert (
+        query_model.source[
+            "attack_story"
+        ][
+            "summary"
+        ]
+        == "test"
+    )
+
+
+def test_query_incident_requires_query_model():
+    controller = (
+        MonitorConsoleController(
+            read_model=QueryReadModel(),
+            renderer=object(),
+        )
+    )
+
+    try:
+        controller.query_incident(
+            "INC-GET-001"
+        )
+
+    except RuntimeError as error:
+        assert (
+            str(error)
+            == (
+                "Incident query surface "
+                "is unavailable"
+            )
+        )
+
+    else:
+        raise AssertionError(
+            "RuntimeError was not raised"
+        )

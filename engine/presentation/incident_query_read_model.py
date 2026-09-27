@@ -21,6 +21,21 @@ class IncidentQueryReadModel:
             incident_repository
         )
 
+    def get(
+        self,
+        incident_id,
+    ):
+        incident = (
+            self.incident_repository
+            .get(
+                incident_id
+            )
+        )
+
+        return deepcopy(
+            incident
+        )
+
     def recent(
         self,
         limit=DEFAULT_LIMIT,
