@@ -114,10 +114,7 @@ class SOCConsole:
 
     def __init__(
         self,
-        simulator=None,
-        event_cache=None,
         threat_graph=None,
-        campaign_tracker=None,
         ai_analyst=None,
         operator_console_controller=None,
         monitor_console_controller=None,
@@ -188,10 +185,7 @@ class SOCConsole:
             ("group", None): self.group,
         }
 
-        self.simulator = simulator
-        self.event_cache = event_cache or []
         self.threat_graph = threat_graph
-        self.campaign_tracker = campaign_tracker
         self.ai = ai_analyst or AIAnalyst()
         self.operator_console_controller = (
             operator_console_controller

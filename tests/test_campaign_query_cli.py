@@ -135,9 +135,6 @@ def make_console(
     )
 
     return SOCConsole(
-        campaign_tracker=(
-            TrackerTrap()
-        ),
         monitor_console_controller=(
             HistoricalIncidentControllerStub(
                 incident_manager
@@ -508,9 +505,6 @@ def make_context_console(
     graph = ThreatGraphStub()
 
     console = SOCConsole(
-        campaign_tracker=(
-            TrackerTrap()
-        ),
         ai_analyst=ai,
         threat_graph=graph,
         monitor_console_controller=(
