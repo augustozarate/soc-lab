@@ -99,10 +99,6 @@ class CaseManager:
         return self.cases.get(case_id)
 
     # -------------------------
-    def list_cases(self):
-        return list(self.cases.values())
-
-    # -------------------------
     def list_recent(
         self,
         limit=DEFAULT_QUERY_LIMIT,

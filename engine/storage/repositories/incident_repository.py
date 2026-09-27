@@ -80,23 +80,6 @@ class IncidentRepository:
             row["data_json"]
         )
 
-    def list_all(self):
-
-        with self.db.connect() as conn:
-
-            rows = conn.execute(
-                """
-                SELECT data_json
-                FROM incidents
-                ORDER BY created_at DESC
-                """
-            ).fetchall()
-
-        return [
-            json.loads(row["data_json"])
-            for row in rows
-        ]
-
     def list_recent(
         self,
         limit=DEFAULT_QUERY_LIMIT,
