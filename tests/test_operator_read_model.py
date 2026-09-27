@@ -7,18 +7,136 @@ class FakeRepository:
 
     def __init__(self, values):
         self.values = values
+        self.recent_calls = []
+        self.recent_summary_calls = []
+        self.summary_calls = 0
+        self.list_all_calls = 0
+
+    def list_recent(
+        self,
+        limit,
+    ):
+        self.recent_calls.append(
+            limit
+        )
+
+        return self.values[
+            :limit
+        ]
+
+    def list_recent_summaries(
+        self,
+        limit,
+    ):
+        self.recent_summary_calls.append(
+            limit
+        )
+
+        return [
+            {
+                "id": value.get(
+                    "id"
+                ),
+                "severity": value.get(
+                    "severity"
+                ),
+            }
+            for value
+            in self.values[
+                :limit
+            ]
+        ]
+
+    def summary_stats(
+        self,
+    ):
+        self.summary_calls += 1
+
+        high_critical = sum(
+            1
+            for value in self.values
+            if str(
+                value.get(
+                    "severity",
+                    "",
+                )
+            ).upper()
+            in {
+                "HIGH",
+                "CRITICAL",
+            }
+        )
+
+        risks = []
+
+        for value in self.values:
+            try:
+                risks.append(
+                    float(
+                        value.get(
+                            "risk",
+                            0,
+                        )
+                    )
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                risks.append(
+                    0
+                )
+
+        return {
+            "incidents": len(
+                self.values
+            ),
+            "high_critical": high_critical,
+            "campaigns": len(
+                self.values
+            ),
+            "max_risk": (
+                max(
+                    risks
+                )
+                if risks
+                else 0
+            ),
+        }
 
     def list_all(self):
-        return self.values
+        self.list_all_calls += 1
+
+        raise AssertionError(
+            "Unbounded repository query used"
+        )
 
 
 class FakeCaseManager:
 
     def __init__(self, values):
         self.values = values
+        self.recent_calls = []
+        self.list_cases_calls = 0
+
+    def list_recent(
+        self,
+        limit,
+    ):
+        self.recent_calls.append(
+            limit
+        )
+
+        return self.values[
+            :limit
+        ]
 
     def list_cases(self):
-        return self.values
+        self.list_cases_calls += 1
+
+        raise AssertionError(
+            "Unbounded case query used"
+        )
 
 
 def build_model():
@@ -505,4 +623,263 @@ def test_snapshot_default_recent_event_bound():
 
     assert snapshot["recent_events"] == (
         events[-10:]
+    )
+
+
+def test_operator_default_queries_are_bounded():
+    model = build_model()
+
+    model.snapshot()
+
+    assert (
+        model
+        .incident_repository
+        .recent_summary_calls
+        == [
+            20
+        ]
+    )
+
+    assert (
+        model
+        .campaign_repository
+        .recent_calls
+        == [
+            20
+        ]
+    )
+
+    assert (
+        model
+        .case_manager
+        .recent_calls
+        == [
+            20
+        ]
+    )
+
+    assert (
+        model
+        .incident_repository
+        .list_all_calls
+        == 0
+    )
+
+    assert (
+        model
+        .campaign_repository
+        .list_all_calls
+        == 0
+    )
+
+    assert (
+        model
+        .case_manager
+        .list_cases_calls
+        == 0
+    )
+
+
+def test_operator_query_limits_are_capped():
+    model = build_model()
+
+    model.snapshot(
+        incident_limit=9999,
+        campaign_limit=9999,
+        case_limit=9999,
+    )
+
+    assert (
+        model
+        .incident_repository
+        .recent_summary_calls
+        == [
+            100
+        ]
+    )
+
+    assert (
+        model
+        .campaign_repository
+        .recent_calls
+        == [
+            100
+        ]
+    )
+
+    assert (
+        model
+        .case_manager
+        .recent_calls
+        == [
+            100
+        ]
+    )
+
+
+def test_operator_zero_limits_return_empty_collections():
+    model = build_model()
+
+    snapshot = model.snapshot(
+        incident_limit=0,
+        campaign_limit=0,
+        case_limit=0,
+    )
+
+    assert snapshot[
+        "incidents"
+    ] == []
+
+    assert snapshot[
+        "campaigns"
+    ] == []
+
+    assert snapshot[
+        "cases"
+    ] == []
+
+    assert (
+        model
+        .incident_repository
+        .recent_summary_calls
+        == [
+            0
+        ]
+    )
+
+    assert (
+        model
+        .campaign_repository
+        .recent_calls
+        == [
+            0
+        ]
+    )
+
+    assert (
+        model
+        .case_manager
+        .recent_calls
+        == [
+            0
+        ]
+    )
+
+
+def test_operator_summary_uses_repository_aggregates_only():
+
+    class IncidentRepository:
+
+        def __init__(
+            self,
+        ):
+            self.summary_calls = 0
+
+        def summary_stats(
+            self,
+        ):
+            self.summary_calls += 1
+
+            return {
+                "incidents": 400,
+                "high_critical": 73,
+            }
+
+        def list_recent_summaries(
+            self,
+            limit,
+        ):
+            raise AssertionError(
+                "Summary reached incident rows"
+            )
+
+        def list_all(
+            self,
+        ):
+            raise AssertionError(
+                "Summary reached unbounded incidents"
+            )
+
+    class CampaignRepository:
+
+        def __init__(
+            self,
+        ):
+            self.summary_calls = 0
+
+        def summary_stats(
+            self,
+        ):
+            self.summary_calls += 1
+
+            return {
+                "campaigns": 91,
+                "max_risk": 97.5,
+            }
+
+        def list_recent(
+            self,
+            limit,
+        ):
+            raise AssertionError(
+                "Summary reached campaign rows"
+            )
+
+        def list_all(
+            self,
+        ):
+            raise AssertionError(
+                "Summary reached unbounded campaigns"
+            )
+
+    incidents = IncidentRepository()
+    campaigns = CampaignRepository()
+
+    model = OperatorReadModel(
+        incident_repository=incidents,
+        campaign_repository=campaigns,
+        case_manager=FakeCaseManager(
+            []
+        ),
+        event_cache=[],
+    )
+
+    assert model.summary() == {
+        "incidents": 400,
+        "high_critical": 73,
+        "campaigns": 91,
+        "max_risk": 97.5,
+    }
+
+    assert incidents.summary_calls == 1
+    assert campaigns.summary_calls == 1
+
+
+def test_operator_never_uses_legacy_unbounded_reads():
+    model = build_model()
+
+    model.incidents()
+    model.campaigns()
+    model.cases()
+    model.summary()
+
+    assert (
+        model
+        .incident_repository
+        .list_all_calls
+        == 0
+    )
+
+    assert (
+        model
+        .campaign_repository
+        .list_all_calls
+        == 0
+    )
+
+    assert (
+        model
+        .case_manager
+        .list_cases_calls
+        == 0
     )
