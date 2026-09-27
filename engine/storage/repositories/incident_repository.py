@@ -219,7 +219,46 @@ class IncidentRepository:
                             END
                         ),
                         0
-                    ) AS high_critical
+                    ) AS high_critical,
+                    COALESCE(
+                        MAX(
+                            CAST(
+                                risk_score AS REAL
+                            )
+                        ),
+                        0
+                    ) AS max_incident_risk,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN EXISTS (
+                                    SELECT 1
+                                    FROM json_each(
+                                        CASE
+                                            WHEN json_valid(
+                                                incidents.data_json
+                                            )
+                                            THEN incidents.data_json
+                                            ELSE '{"alerts":[]}'
+                                        END,
+                                        '$.alerts'
+                                    ) AS alert
+                                    WHERE
+                                        json_extract(
+                                            alert.value,
+                                            '$.type'
+                                        ) = 'UEBA_BRUTE_FORCE'
+                                        OR json_extract(
+                                            alert.value,
+                                            '$.rule_id'
+                                        ) = 'UEBA_BRUTE_FORCE'
+                                )
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS ueba_incidents
                 FROM incidents
                 """
             ).fetchone()
@@ -228,6 +267,8 @@ class IncidentRepository:
             return {
                 "incidents": 0,
                 "high_critical": 0,
+                "max_incident_risk": 0.0,
+                "ueba_incidents": 0,
             }
 
         return {
@@ -237,6 +278,14 @@ class IncidentRepository:
             ),
             "high_critical": int(
                 row["high_critical"]
+                or 0
+            ),
+            "max_incident_risk": float(
+                row["max_incident_risk"]
+                or 0
+            ),
+            "ueba_incidents": int(
+                row["ueba_incidents"]
                 or 0
             ),
         }

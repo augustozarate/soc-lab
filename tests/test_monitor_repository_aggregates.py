@@ -186,6 +186,8 @@ def test_incident_summary_is_exact(
         == {
             "incidents": 5,
             "high_critical": 3,
+            "max_incident_risk": 95.0,
+            "ueba_incidents": 0,
         }
     )
 
@@ -206,6 +208,8 @@ def test_incident_summary_empty_database(
         == {
             "incidents": 0,
             "high_critical": 0,
+            "max_incident_risk": 0.0,
+            "ueba_incidents": 0,
         }
     )
 
@@ -365,6 +369,8 @@ def test_aggregate_queries_do_not_deserialize_json(
         == {
             "incidents": 1,
             "high_critical": 1,
+            "max_incident_risk": 99.0,
+            "ueba_incidents": 0,
         }
     )
 
@@ -376,3 +382,190 @@ def test_aggregate_queries_do_not_deserialize_json(
             "max_risk": 91.0,
         }
     )
+
+
+def test_incident_summary_counts_ueba_alert_types_only(
+    tmp_path,
+):
+    db = build_db(
+        tmp_path
+    )
+
+    repository = IncidentRepository(
+        db
+    )
+
+    with db.connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO incidents (
+                id,
+                severity,
+                risk_score,
+                created_at,
+                data_json
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "INC-UEBA-TYPE",
+                "HIGH",
+                88,
+                "2026-09-25T00:00:00",
+                json.dumps(
+                    {
+                        "id": "INC-UEBA-TYPE",
+                        "alerts": [
+                            {
+                                "type": (
+                                    "UEBA_BRUTE_FORCE"
+                                )
+                            }
+                        ],
+                    }
+                ),
+            ),
+        )
+
+        conn.execute(
+            """
+            INSERT INTO incidents (
+                id,
+                severity,
+                risk_score,
+                created_at,
+                data_json
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "INC-UEBA-RULE",
+                "MEDIUM",
+                55,
+                "2026-09-25T00:01:00",
+                json.dumps(
+                    {
+                        "id": "INC-UEBA-RULE",
+                        "alerts": [
+                            {
+                                "rule_id": (
+                                    "UEBA_BRUTE_FORCE"
+                                )
+                            }
+                        ],
+                    }
+                ),
+            ),
+        )
+
+    summary = (
+        repository.summary_stats()
+    )
+
+    assert summary[
+        "ueba_incidents"
+    ] == 2
+
+
+def test_incident_summary_does_not_count_ueba_text_outside_alerts(
+    tmp_path,
+):
+    db = build_db(
+        tmp_path
+    )
+
+    repository = IncidentRepository(
+        db
+    )
+
+    with db.connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO incidents (
+                id,
+                severity,
+                risk_score,
+                created_at,
+                data_json
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "INC-NOTE",
+                "LOW",
+                10,
+                "2026-09-25T00:00:00",
+                json.dumps(
+                    {
+                        "id": "INC-NOTE",
+                        "alerts": [],
+                        "internal_note": (
+                            "Mentions "
+                            "UEBA_BRUTE_FORCE "
+                            "but is not an alert"
+                        ),
+                    }
+                ),
+            ),
+        )
+
+    summary = (
+        repository.summary_stats()
+    )
+
+    assert summary[
+        "ueba_incidents"
+    ] == 0
+
+
+def test_incident_summary_ueba_tolerates_malformed_json(
+    tmp_path,
+):
+    db = build_db(
+        tmp_path
+    )
+
+    repository = IncidentRepository(
+        db
+    )
+
+    with db.connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO incidents (
+                id,
+                severity,
+                risk_score,
+                created_at,
+                data_json
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "INC-BROKEN-UEBA",
+                "CRITICAL",
+                99,
+                "2026-09-25T00:00:00",
+                "{not valid json",
+            ),
+        )
+
+    summary = (
+        repository.summary_stats()
+    )
+
+    assert summary[
+        "incidents"
+    ] == 1
+
+    assert summary[
+        "high_critical"
+    ] == 1
+
+    assert summary[
+        "max_incident_risk"
+    ] == 99.0
+
+    assert summary[
+        "ueba_incidents"
+    ] == 0

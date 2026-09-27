@@ -7,6 +7,12 @@ from engine.services.atomic_json_writer import (
 
 class MonitorSnapshotBuilder:
 
+    DEFAULT_INCIDENT_LIMIT = 100
+    DEFAULT_CAMPAIGN_LIMIT = 100
+
+    MAX_INCIDENT_LIMIT = 100
+    MAX_CAMPAIGN_LIMIT = 100
+
     def __init__(
         self,
         incident_repository,
@@ -23,30 +29,78 @@ class MonitorSnapshotBuilder:
 
     # =========================================
 
-    def build(self):
+    def build(
+        self,
+        incident_limit=DEFAULT_INCIDENT_LIMIT,
+        campaign_limit=DEFAULT_CAMPAIGN_LIMIT,
+    ):
+
+        bounded_incident_limit = (
+            self._bounded_limit(
+                incident_limit,
+                default=self.DEFAULT_INCIDENT_LIMIT,
+                maximum=self.MAX_INCIDENT_LIMIT,
+            )
+        )
+
+        bounded_campaign_limit = (
+            self._bounded_limit(
+                campaign_limit,
+                default=self.DEFAULT_CAMPAIGN_LIMIT,
+                maximum=self.MAX_CAMPAIGN_LIMIT,
+            )
+        )
 
         incidents = (
             self.incident_repository
-            .list_all()
+            .list_recent(
+                limit=bounded_incident_limit
+            )
         )
 
         campaigns = (
             self.campaign_repository
-            .list_all()
+            .list_recent(
+                limit=bounded_campaign_limit
+            )
+        )
+
+        incident_summary = (
+            self.incident_repository
+            .summary_stats()
+        )
+
+        campaign_summary = (
+            self.campaign_repository
+            .summary_stats()
         )
 
         incident_views = [
             self._incident_view(
                 incident
             )
-            for incident in incidents
+            for incident in (
+                incidents
+                if isinstance(
+                    incidents,
+                    list,
+                )
+                else []
+            )
         ]
 
         campaign_views = [
             self._campaign_view(
                 campaign
             )
-            for campaign in campaigns
+            for campaign in (
+                campaigns
+                if isinstance(
+                    campaigns,
+                    list,
+                )
+                else []
+            )
         ]
 
         return {
@@ -58,8 +112,8 @@ class MonitorSnapshotBuilder:
 
             "summary": (
                 self._build_summary(
-                    incident_views,
-                    campaign_views
+                    incident_summary,
+                    campaign_summary,
                 )
             ),
 
@@ -219,61 +273,116 @@ class MonitorSnapshotBuilder:
 
     def _build_summary(
         self,
-        incidents,
-        campaigns
+        incident_summary,
+        campaign_summary,
     ):
 
-        high_or_critical = sum(
-            1
-            for incident in incidents
-            if incident.get(
-                "severity"
+        incident_summary = (
+            incident_summary
+            if isinstance(
+                incident_summary,
+                dict,
             )
-            in {
-                "HIGH",
-                "CRITICAL"
-            }
+            else {}
         )
 
-        ueba_incidents = sum(
-            1
-            for incident in incidents
-            if "UEBA_BRUTE_FORCE"
-            in incident.get(
-                "alert_types",
-                []
+        campaign_summary = (
+            campaign_summary
+            if isinstance(
+                campaign_summary,
+                dict,
             )
-        )
-
-        max_risk = max(
-            (
-                incident.get(
-                    "risk_score",
-                    0
-                )
-                for incident
-                in incidents
-            ),
-            default=0
+            else {}
         )
 
         return {
-            "total_incidents": len(
-                incidents
+            "total_incidents": self._integer(
+                incident_summary.get(
+                    "incidents",
+                    0,
+                )
             ),
-            "high_or_critical": (
-                high_or_critical
+            "high_or_critical": self._integer(
+                incident_summary.get(
+                    "high_critical",
+                    0,
+                )
             ),
-            "ueba_incidents": (
-                ueba_incidents
+            "ueba_incidents": self._integer(
+                incident_summary.get(
+                    "ueba_incidents",
+                    0,
+                )
             ),
-            "total_campaigns": len(
-                campaigns
+            "total_campaigns": self._integer(
+                campaign_summary.get(
+                    "campaigns",
+                    0,
+                )
             ),
-            "max_incident_risk": (
-                max_risk
-            )
+            "max_incident_risk": self._number(
+                incident_summary.get(
+                    "max_incident_risk",
+                    0,
+                )
+            ),
         }
+
+    @staticmethod
+    def _bounded_limit(
+        value,
+        default,
+        maximum,
+    ):
+        try:
+            normalized = int(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            normalized = default
+
+        if normalized <= 0:
+            return 0
+
+        return min(
+            normalized,
+            maximum,
+        )
+
+    @staticmethod
+    def _integer(
+        value,
+    ):
+        try:
+            return int(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return 0
+
+    @staticmethod
+    def _number(
+        value,
+    ):
+        try:
+            return float(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return 0.0
+
 
 
 class MonitorSnapshotWriter(
