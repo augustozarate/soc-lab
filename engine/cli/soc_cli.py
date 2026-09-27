@@ -1259,23 +1259,6 @@ class SOCConsole:
         print("Util commands:")
         print("util count | sort | where | fields | table | json")
 
-    def load_intel_file(self, path):
-
-        try:
-            with open(path) as f:
-                data = json.load(f)
-
-            print(f"Loaded {len(data)} threat indicators")
-
-            # opcional: guardar en memory
-            for entry in data:
-                ip = entry.get("ip")
-                if ip:
-                    self.ai.memory.update_ip(ip, risk=entry.get("risk", 50))
-
-        except Exception as e:
-            print(f"Error loading intel: {e}")
-
     def suggest(self, token, options):
         return [o for o in options if o.startswith(token)]
 
