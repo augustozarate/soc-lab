@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+
 class OperatorConsoleController:
 
     def __init__(
@@ -7,6 +10,23 @@ class OperatorConsoleController:
     ):
         self.read_model = read_model
         self.renderer = renderer
+
+    def query_cases(
+        self,
+        limit=20,
+    ):
+        return deepcopy(
+            self.read_model.cases(
+                limit=limit
+            )
+        )
+
+    def query_summary(
+        self,
+    ):
+        return deepcopy(
+            self.read_model.summary()
+        )
 
     def render(
         self,

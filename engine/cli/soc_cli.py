@@ -644,20 +644,73 @@ class SOCConsole:
                 "[ERROR] Command execution failed"
             )
 
+    @staticmethod
+    def parse_filters(args):
+        filters = {}
+
+        for expression in args or []:
+            if "=" not in expression:
+                continue
+
+            key, value = expression.split(
+                "=",
+                1,
+            )
+
+            key = key.strip()
+
+            if not key:
+                continue
+
+            filters[key] = value
+
+        return filters
+
     def search_incidents(self, args, flags, input_data=None):
         filters = self.parse_filters(args)
 
-        results = []
-        for inc in self.im.incidents.values():
-            if all(str(inc.get(k)) == v for k, v in filters.items()):
-                results.append(inc)
+        incidents = (
+            self._query_incidents_for_cli()
+            if input_data is None
+            else input_data
+        )
 
-        return results
+        return [
+            incident
+            for incident in incidents or []
+            if all(
+                str(
+                    incident.get(key)
+                )
+                == value
+                for key, value
+                in filters.items()
+            )
+        ]
 
     def count(self, args, flags, input_data):
-        if input_data is None:
-            input_data = list(self.im.incidents.values())
-        return len(input_data)
+        if input_data is not None:
+            return len(
+                input_data
+            )
+
+        summary = (
+            self._query_operator_summary()
+        )
+
+        try:
+            return int(
+                summary.get(
+                    "incidents",
+                    0,
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return 0
 
     def fields(self, args, flags, data):
         if not args:
@@ -906,8 +959,54 @@ class SOCConsole:
 
     # =========================
 
+    def _query_incidents_for_cli(
+        self,
+        limit=100,
+    ):
+        if self.monitor_console_controller is None:
+            raise RuntimeError(
+                "Monitor Console is unavailable"
+            )
+
+        return (
+            self.monitor_console_controller
+            .query_incidents(
+                limit=limit,
+                severity=None,
+            )
+        )
+
+    def _query_operator_cases(
+        self,
+        limit=100,
+    ):
+        if self.operator_console_controller is None:
+            raise RuntimeError(
+                "Operator Console is unavailable"
+            )
+
+        return (
+            self.operator_console_controller
+            .query_cases(
+                limit=limit
+            )
+        )
+
+    def _query_operator_summary(
+        self,
+    ):
+        if self.operator_console_controller is None:
+            raise RuntimeError(
+                "Operator Console is unavailable"
+            )
+
+        return (
+            self.operator_console_controller
+            .query_summary()
+        )
+
     def list_incidents(self, args=None, flags=None, input_data=None):
-        return list(self.im.incidents.values())
+        return self._query_incidents_for_cli()
 
     def show_recent_incidents(
         self,
@@ -940,7 +1039,9 @@ class SOCConsole:
         )
 
     def cmd_incidents_list(self, args, flags, data):
-        incidents = list(self.im.incidents.values())
+        incidents = (
+            self._query_incidents_for_cli()
+        )
 
         if data is None:  # solo si es comando standalone
             table = Table(title="Incidents")
@@ -1362,15 +1463,28 @@ class SOCConsole:
         render_story(story)
 
     def list_cases(self, args=None, flags=None, data=None):
-        if not self.cm.cases:
+        cases = (
+            self._query_operator_cases()
+        )
+
+        if not cases:
             print("No cases available")
             return
 
-        for cid, case in self.cm.cases.items():
-            print(
-                f"{cid} | Incident {case['incident_id']} | "
-                f"Status: {case['status']} | Analyst: {case['assignee']}"
+        for case in cases:
+            cid = case.get(
+                "id",
+                "-",
             )
+
+            print(
+                f"{cid} | Incident "
+                f"{case.get('incident_id', '-')} | "
+                f"Status: {case.get('status', '-')} | "
+                f"Analyst: {case.get('assignee', '-')}"
+            )
+
+        return cases
 
     def show_campaign(
         self,

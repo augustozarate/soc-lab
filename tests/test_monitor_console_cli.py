@@ -945,3 +945,181 @@ def test_valid_parsed_command_missing_route_is_operational_failure(
         "Command not implemented"
         not in output
     )
+
+
+class RoutedIncidentControllerStub:
+
+    def __init__(self):
+        self.calls = []
+
+    def query_incidents(
+        self,
+        limit=20,
+        severity=None,
+    ):
+        self.calls.append(
+            (
+                limit,
+                severity,
+            )
+        )
+
+        return [
+            {
+                "id": "INC-001",
+                "ip": "10.0.0.1",
+                "severity": "HIGH",
+                "risk_score": 90,
+            },
+            {
+                "id": "INC-002",
+                "ip": "10.0.0.2",
+                "severity": "LOW",
+                "risk_score": 10,
+            },
+        ]
+
+
+class StrictIncidentManager:
+
+    @property
+    def incidents(self):
+        raise AssertionError(
+            "mutable incident state reached"
+        )
+
+
+def make_routed_incident_console():
+    controller = (
+        RoutedIncidentControllerStub()
+    )
+
+    console = SOCConsole(
+        incident_manager=(
+            StrictIncidentManager()
+        ),
+        case_manager=(
+            CaseManagerStub()
+        ),
+        monitor_console_controller=(
+            controller
+        ),
+    )
+
+    return (
+        console,
+        controller,
+    )
+
+
+def test_incidents_list_uses_bounded_controller_route(
+    monkeypatch,
+):
+    console, controller = (
+        make_routed_incident_console()
+    )
+
+    logged = []
+
+    monkeypatch.setattr(
+        "engine.cli.soc_cli.log",
+        logged.append,
+    )
+
+    result = (
+        console.cmd_incidents_list(
+            args=[],
+            flags={},
+            data=None,
+        )
+    )
+
+    assert controller.calls == [
+        (
+            100,
+            None,
+        )
+    ]
+
+    assert [
+        row["id"]
+        for row in result
+    ] == [
+        "INC-001",
+        "INC-002",
+    ]
+
+    assert len(logged) == 1
+
+    table = logged[0]
+
+    assert table.row_count == 2
+
+    assert [
+        column.header
+        for column in table.columns
+    ] == [
+        "ID",
+        "IP",
+        "Severity",
+        "Risk",
+    ]
+
+
+def test_incidents_search_filters_controller_projection():
+    console, controller = (
+        make_routed_incident_console()
+    )
+
+    result = (
+        console.search_incidents(
+            args=[
+                "severity=HIGH",
+            ],
+            flags={},
+            input_data=None,
+        )
+    )
+
+    assert controller.calls == [
+        (
+            100,
+            None,
+        )
+    ]
+
+    assert result == [
+        {
+            "id": "INC-001",
+            "ip": "10.0.0.1",
+            "severity": "HIGH",
+            "risk_score": 90,
+        }
+    ]
+
+
+def test_incidents_list_can_feed_existing_pipeline(
+    capsys,
+):
+    console, controller = (
+        make_routed_incident_console()
+    )
+
+    console._execute_command(
+        "incidents list | util head 1"
+    )
+
+    assert controller.calls == [
+        (
+            100,
+            None,
+        )
+    ]
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert "INC-001" in output
