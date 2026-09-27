@@ -959,6 +959,22 @@ class SOCConsole:
 
     # =========================
 
+    def _query_incident_for_cli(
+        self,
+        incident_id,
+    ):
+        if self.monitor_console_controller is None:
+            raise RuntimeError(
+                "Monitor Console is unavailable"
+            )
+
+        return (
+            self.monitor_console_controller
+            .query_incident(
+                incident_id
+            )
+        )
+
     def _query_incidents_for_cli(
         self,
         limit=100,
@@ -1080,7 +1096,7 @@ class SOCConsole:
 
         incident_id = args[0]
 
-        inc = self.im.get(incident_id)
+        inc = self._query_incident_for_cli(incident_id)
         if inc:
             print(json.dumps(inc, indent=2))
         else:
@@ -1138,7 +1154,7 @@ class SOCConsole:
             print("Threat graph not available")
             return
 
-        incident = self.im.get(incident_id)
+        incident = self._query_incident_for_cli(incident_id)
 
         if not incident:
             # intentar como campaign
@@ -1239,7 +1255,7 @@ class SOCConsole:
         incident_id = args[0]
         question = " ".join(args[1:])
 
-        incident = self.im.get(incident_id)
+        incident = self._query_incident_for_cli(incident_id)
         if not incident:
             print("Incident not found")
             return
@@ -1369,7 +1385,7 @@ class SOCConsole:
             return
 
         incident_id = args[0]
-        incident = self.im.get(incident_id)
+        incident = self._query_incident_for_cli(incident_id)
 
         if not incident:
             # intentar como campaign
@@ -1490,7 +1506,7 @@ class SOCConsole:
             "incidents",
             [],
         ):
-            inc = self.im.get(
+            inc = self._query_incident_for_cli(
                 iid
             )
 

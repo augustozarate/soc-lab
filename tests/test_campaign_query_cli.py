@@ -28,6 +28,28 @@ class IncidentManagerStub:
         )
 
 
+class HistoricalIncidentControllerStub:
+
+    def __init__(
+        self,
+        incident_manager,
+    ):
+        self.incident_manager = (
+            incident_manager
+        )
+
+    def query_incident(
+        self,
+        incident_id,
+    ):
+        return (
+            self.incident_manager
+            .get(
+                incident_id
+            )
+        )
+
+
 class CaseManagerStub:
     pass
 
@@ -108,15 +130,24 @@ class CampaignReadModelStub:
 def make_console(
     model=None,
 ):
+    incident_manager = (
+        IncidentManagerStub()
+    )
+
     return SOCConsole(
         incident_manager=(
-            IncidentManagerStub()
+            incident_manager
         ),
         case_manager=(
             CaseManagerStub()
         ),
         campaign_tracker=(
             TrackerTrap()
+        ),
+        monitor_console_controller=(
+            HistoricalIncidentControllerStub(
+                incident_manager
+            )
         ),
         campaign_query_read_model=(
             model
@@ -494,6 +525,11 @@ def make_context_console(
         ),
         ai_analyst=ai,
         threat_graph=graph,
+        monitor_console_controller=(
+            HistoricalIncidentControllerStub(
+                incident_manager
+            )
+        ),
         campaign_query_read_model=(
             model
         ),
@@ -726,4 +762,193 @@ def test_story_campaign_detection_uses_read_model(
     assert (
         "That is a CAMPAIGN ID"
         in output
+    )
+
+
+class MigrationCampaignQueryReadModelStub:
+
+    def __init__(
+        self,
+    ):
+        self.calls = []
+
+    def get(
+        self,
+        campaign_id,
+    ):
+        self.calls.append(
+            campaign_id
+        )
+
+        if campaign_id != "CAMP-1":
+            return None
+
+        return {
+            "id": "CAMP-1",
+            "stage": "ACTIVE",
+            "risk": 80,
+            "entities": {
+                "ip": [
+                    "10.0.0.10",
+                ],
+            },
+            "incidents": [
+                "INC-1",
+            ],
+            "tactics": [],
+            "timeline": [],
+        }
+
+
+class SingleIncidentControllerStub:
+
+    def __init__(
+        self,
+        rows,
+    ):
+        self.rows = rows
+        self.calls = []
+
+    def query_incident(
+        self,
+        incident_id,
+    ):
+        self.calls.append(
+            incident_id
+        )
+
+        return self.rows.get(
+            incident_id
+        )
+
+
+class NoGetIncidentManager:
+
+    def get(
+        self,
+        incident_id,
+    ):
+        raise AssertionError(
+            "IncidentManager.get reached"
+        )
+
+
+def test_ask_ai_uses_single_incident_controller():
+    controller = (
+        SingleIncidentControllerStub(
+            {
+                "INC-AI": {
+                    "id": "INC-AI",
+                    "campaign_id": None,
+                    "severity": "HIGH",
+                }
+            }
+        )
+    )
+
+    class AIStub:
+
+        def __init__(
+            self,
+        ):
+            self.calls = []
+
+        def ask(
+            self,
+            incident,
+            question,
+            threat_graph,
+            campaign,
+        ):
+            self.calls.append(
+                (
+                    incident,
+                    question,
+                    threat_graph,
+                    campaign,
+                )
+            )
+
+            return "AI-OK"
+
+    ai = AIStub()
+
+    console = SOCConsole(
+        incident_manager=(
+            NoGetIncidentManager()
+        ),
+        case_manager=CaseManagerStub(),
+        ai_analyst=ai,
+        monitor_console_controller=(
+            controller
+        ),
+        campaign_query_read_model=(
+            MigrationCampaignQueryReadModelStub()
+        ),
+    )
+
+    console.ask_ai(
+        [
+            "INC-AI",
+            "what",
+            "happened",
+        ],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-AI"
+    ]
+
+    assert len(
+        ai.calls
+    ) == 1
+
+    assert (
+        ai.calls[0][0]["id"]
+        == "INC-AI"
+    )
+
+
+def test_show_campaign_uses_single_incident_controller(
+    capsys,
+):
+    controller = (
+        SingleIncidentControllerStub(
+            {
+                "INC-1": {
+                    "id": "INC-1",
+                    "severity": "HIGH",
+                }
+            }
+        )
+    )
+
+    console = SOCConsole(
+        incident_manager=(
+            NoGetIncidentManager()
+        ),
+        case_manager=CaseManagerStub(),
+        monitor_console_controller=(
+            controller
+        ),
+        campaign_query_read_model=(
+            MigrationCampaignQueryReadModelStub()
+        ),
+    )
+
+    console.show_campaign(
+        ["CAMP-1"],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-1"
+    ]
+
+    assert (
+        "INC-1 (HIGH)"
+        in capsys.readouterr().out
     )

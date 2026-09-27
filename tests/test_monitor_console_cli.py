@@ -1123,3 +1123,183 @@ def test_incidents_list_can_feed_existing_pipeline(
     )
 
     assert "INC-001" in output
+
+
+class SingleIncidentRouteControllerStub:
+
+    def __init__(
+        self,
+    ):
+        self.calls = []
+
+        self.rows = {
+            "INC-001": {
+                "id": "INC-001",
+                "severity": "HIGH",
+                "campaign_id": None,
+                "attack_story": {
+                    "summary": "story",
+                },
+            },
+            "INC-GRAPH": {
+                "id": "INC-GRAPH",
+                "severity": "CRITICAL",
+            },
+        }
+
+    def query_incident(
+        self,
+        incident_id,
+    ):
+        self.calls.append(
+            incident_id
+        )
+
+        return self.rows.get(
+            incident_id
+        )
+
+
+class NoGetIncidentManager:
+
+    def get(
+        self,
+        incident_id,
+    ):
+        raise AssertionError(
+            "IncidentManager.get reached"
+        )
+
+
+def make_single_incident_route_console():
+    controller = (
+        SingleIncidentRouteControllerStub()
+    )
+
+    console = SOCConsole(
+        incident_manager=(
+            NoGetIncidentManager()
+        ),
+        case_manager=CaseManagerStub(),
+        monitor_console_controller=(
+            controller
+        ),
+    )
+
+    return (
+        console,
+        controller,
+    )
+
+
+def test_show_incident_uses_single_incident_controller(
+    capsys,
+):
+    console, controller = (
+        make_single_incident_route_console()
+    )
+
+    console.show_incident(
+        ["INC-001"],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-001"
+    ]
+
+    assert (
+        '"id": "INC-001"'
+        in capsys.readouterr().out
+    )
+
+
+def test_show_incident_missing_result_preserved(
+    capsys,
+):
+    console, controller = (
+        make_single_incident_route_console()
+    )
+
+    console.show_incident(
+        ["INC-MISSING"],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-MISSING"
+    ]
+
+    assert (
+        "Incident not found"
+        in capsys.readouterr().out
+    )
+
+
+def test_cmd_story_uses_single_incident_controller(
+    monkeypatch,
+):
+    console, controller = (
+        make_single_incident_route_console()
+    )
+
+    rendered = []
+
+    monkeypatch.setattr(
+        "engine.cli.soc_cli.render_story",
+        lambda story: rendered.append(
+            story
+        ),
+    )
+
+    console.cmd_story(
+        ["INC-001"],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-001"
+    ]
+
+    assert rendered == [
+        {
+            "summary": "story",
+        }
+    ]
+
+
+def test_graph_path_uses_single_incident_controller(
+    monkeypatch,
+):
+    console, controller = (
+        make_single_incident_route_console()
+    )
+
+    class ThreatGraphStub:
+
+        def get_incident_context(
+            self,
+            incident_id,
+        ):
+            return {
+                "ips": [],
+                "campaigns": [],
+                "mitre": [],
+            }
+
+    console.threat_graph = (
+        ThreatGraphStub()
+    )
+
+    console.cmd_graph(
+        ["INC-GRAPH"],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-GRAPH"
+    ]
