@@ -65,7 +65,7 @@ class TrackerTrap:
         )
 
 
-class CampaignReadModelStub:
+class CampaignConsoleControllerStub:
 
     def __init__(
         self,
@@ -97,11 +97,11 @@ class CampaignReadModelStub:
             ],
         }
 
-    def recent(
+    def query_campaigns(
         self,
+        limit=20,
     ):
         self.recent_calls += 1
-
         return [
             {
                 "id": "CMP-1",
@@ -113,7 +113,7 @@ class CampaignReadModelStub:
             }
         ]
 
-    def get(
+    def query_campaign(
         self,
         campaign_id,
     ):
@@ -140,14 +140,14 @@ def make_console(
                 incident_manager
             )
         ),
-        campaign_query_read_model=(
+        campaign_console_controller=(
             model
         ),
     )
 
 
-def test_campaign_list_delegates_to_read_model():
-    model = CampaignReadModelStub()
+def test_campaign_list_delegates_to_controller():
+    model = CampaignConsoleControllerStub()
 
     console = make_console(
         model
@@ -173,7 +173,7 @@ def test_campaign_list_delegates_to_read_model():
     ]
 
 
-def test_campaign_list_requires_read_model():
+def test_campaign_list_requires_controller():
     console = make_console()
 
     try:
@@ -198,7 +198,7 @@ def test_campaign_list_requires_read_model():
 
 def test_campaign_list_rejects_pipeline_input():
     console = make_console(
-        CampaignReadModelStub()
+        CampaignConsoleControllerStub()
     )
 
     try:
@@ -226,10 +226,10 @@ def test_campaign_list_rejects_pipeline_input():
         )
 
 
-def test_campaign_show_delegates_to_read_model(
+def test_campaign_show_delegates_to_controller(
     capsys,
 ):
-    model = CampaignReadModelStub()
+    model = CampaignConsoleControllerStub()
 
     console = make_console(
         model
@@ -279,10 +279,10 @@ def test_campaign_show_delegates_to_read_model(
     )
 
 
-def test_campaign_show_missing_uses_read_model(
+def test_campaign_show_missing_uses_controller(
     capsys,
 ):
-    model = CampaignReadModelStub()
+    model = CampaignConsoleControllerStub()
 
     console = make_console(
         model
@@ -312,10 +312,10 @@ def test_campaign_show_missing_uses_read_model(
     )
 
 
-def test_campaign_graph_delegates_to_read_model(
+def test_campaign_graph_delegates_to_controller(
     capsys,
 ):
-    model = CampaignReadModelStub()
+    model = CampaignConsoleControllerStub()
 
     console = make_console(
         model
@@ -365,10 +365,10 @@ def test_campaign_graph_delegates_to_read_model(
     )
 
 
-def test_campaign_graph_missing_uses_read_model(
+def test_campaign_graph_missing_uses_controller(
     capsys,
 ):
-    model = CampaignReadModelStub()
+    model = CampaignConsoleControllerStub()
 
     console = make_console(
         model
@@ -398,7 +398,7 @@ def test_campaign_graph_missing_uses_read_model(
 
 def test_campaign_routes_remain_registered():
     console = make_console(
-        CampaignReadModelStub()
+        CampaignConsoleControllerStub()
     )
 
     assert (
@@ -512,7 +512,7 @@ def make_context_console(
                 incident_manager
             )
         ),
-        campaign_query_read_model=(
+        campaign_console_controller=(
             model
         ),
     )
@@ -524,10 +524,10 @@ def make_context_console(
     )
 
 
-def test_show_graph_campaign_detection_uses_read_model(
+def test_show_graph_campaign_detection_uses_controller(
     capsys,
 ):
-    model = CampaignReadModelStub()
+    model = CampaignConsoleControllerStub()
 
     console, _, _ = (
         make_context_console(
@@ -557,10 +557,10 @@ def test_show_graph_campaign_detection_uses_read_model(
 
 
 
-def test_ask_ai_uses_campaign_read_model(
+def test_ask_ai_uses_campaign_controller(
     capsys,
 ):
-    model = CampaignReadModelStub()
+    model = CampaignConsoleControllerStub()
 
     console, ai, graph = (
         make_context_console(
@@ -627,10 +627,10 @@ def test_ask_ai_uses_campaign_read_model(
 
 
 
-def test_story_campaign_detection_uses_read_model(
+def test_story_campaign_detection_uses_controller(
     capsys,
 ):
-    model = CampaignReadModelStub()
+    model = CampaignConsoleControllerStub()
 
     console, _, _ = (
         make_context_console(
@@ -662,14 +662,14 @@ def test_story_campaign_detection_uses_read_model(
     )
 
 
-class MigrationCampaignQueryReadModelStub:
+class MigrationCampaignConsoleControllerStub:
 
     def __init__(
         self,
     ):
         self.calls = []
 
-    def get(
+    def query_campaign(
         self,
         campaign_id,
     ):
@@ -839,8 +839,8 @@ def test_ask_ai_uses_single_incident_controller():
         monitor_console_controller=(
             controller
         ),
-        campaign_query_read_model=(
-            MigrationCampaignQueryReadModelStub()
+        campaign_console_controller=(
+            MigrationCampaignConsoleControllerStub()
         ),
     )
 
@@ -886,8 +886,8 @@ def test_show_campaign_uses_single_incident_controller(
         monitor_console_controller=(
             controller
         ),
-        campaign_query_read_model=(
-            MigrationCampaignQueryReadModelStub()
+        campaign_console_controller=(
+            MigrationCampaignConsoleControllerStub()
         ),
     )
 
@@ -929,8 +929,8 @@ def test_campaign_graph_uses_controller_backed_incident_reader(
         monitor_console_controller=(
             controller
         ),
-        campaign_query_read_model=(
-            MigrationCampaignQueryReadModelStub()
+        campaign_console_controller=(
+            MigrationCampaignConsoleControllerStub()
         ),
     )
 

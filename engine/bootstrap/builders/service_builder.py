@@ -161,6 +161,9 @@ from engine.presentation.incident_query_read_model import (
 from engine.presentation.campaign_query_read_model import (
     CampaignQueryReadModel
 )
+from engine.presentation.campaign_console_controller import (
+    CampaignConsoleController
+)
 from engine.presentation.notification_channel_read_model import (
     NotificationChannelReadModel
 )
@@ -688,6 +691,14 @@ def build_services(container):
         CampaignQueryReadModel(
             campaign_repository=(
                 container.campaign_repository
+            )
+        )
+    )
+
+    container.campaign_console_controller = (
+        CampaignConsoleController(
+            campaign_query_read_model=(
+                container.campaign_query_read_model
             )
         )
     )

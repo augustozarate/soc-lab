@@ -152,8 +152,8 @@ def create_app():
         report_application_service=(
             container.report_application_service
         ),
-        campaign_query_read_model=(
-            container.campaign_query_read_model
+        campaign_console_controller=(
+            container.campaign_console_controller
         )
     )
 

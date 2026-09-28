@@ -119,7 +119,7 @@ class SOCConsole:
         operator_console_controller=None,
         monitor_console_controller=None,
         report_application_service=None,
-        campaign_query_read_model=None,
+        campaign_console_controller=None,
     ):
         self.routes = {
             # BASE COMMANDS
@@ -196,8 +196,8 @@ class SOCConsole:
         self.report_application_service = (
             report_application_service
         )
-        self.campaign_query_read_model = (
-            campaign_query_read_model
+        self.campaign_console_controller = (
+            campaign_console_controller
         )
         self.parser = CommandParser(COMMAND_TREE)
         self._thread = None
@@ -449,11 +449,12 @@ class SOCConsole:
             f"{destination}"
         )
 
-    def _require_campaign_query_read_model(
+    def _query_campaign_for_cli(
         self,
+        campaign_id,
     ):
         if (
-            self.campaign_query_read_model
+            self.campaign_console_controller
             is None
         ):
             raise RuntimeError(
@@ -461,8 +462,31 @@ class SOCConsole:
             )
 
         return (
-            self.campaign_query_read_model
+            self.campaign_console_controller
+            .query_campaign(
+                campaign_id
+            )
         )
+
+    def _query_campaigns_for_cli(
+        self,
+        limit=20,
+    ):
+        if (
+            self.campaign_console_controller
+            is None
+        ):
+            raise RuntimeError(
+                "Campaign queries are unavailable"
+            )
+
+        return (
+            self.campaign_console_controller
+            .query_campaigns(
+                limit=limit
+            )
+        )
+
 
     def show_operator_console(
         self,
@@ -1170,10 +1194,7 @@ class SOCConsole:
         if not incident:
             # intentar como campaign
             campaign = (
-                self._require_campaign_query_read_model()
-                .get(
-                    incident_id
-                )
+                self._query_campaign_for_cli(incident_id)
             )
 
             if campaign:
@@ -1209,11 +1230,7 @@ class SOCConsole:
                 "consume pipeline input"
             )
 
-        model = (
-            self._require_campaign_query_read_model()
-        )
-
-        return model.recent()
+        return self._query_campaigns_for_cli()
 
 
     def ask_ai(self, args, flags, data):
@@ -1232,12 +1249,9 @@ class SOCConsole:
         campaign = None
         if incident.get("campaign_id"):
             campaign = (
-                self._require_campaign_query_read_model()
-                .get(
-                    incident[
+                self._query_campaign_for_cli(incident[
                         "campaign_id"
-                    ]
-                )
+                    ])
             )
 
         response = self.ai.ask(
@@ -1286,10 +1300,7 @@ class SOCConsole:
         if not incident:
             # intentar como campaign
             campaign = (
-                self._require_campaign_query_read_model()
-                .get(
-                    incident_id
-                )
+                self._query_campaign_for_cli(incident_id)
             )
 
             if campaign:
@@ -1349,13 +1360,8 @@ class SOCConsole:
             )
             return
 
-        model = (
-            self._require_campaign_query_read_model()
-        )
-
         cid = args[0]
-
-        campaign = model.get(
+        campaign = self._query_campaign_for_cli(
             cid
         )
 
@@ -1458,13 +1464,8 @@ class SOCConsole:
             )
             return
 
-        model = (
-            self._require_campaign_query_read_model()
-        )
-
         cid = args[0]
-
-        campaign = model.get(
+        campaign = self._query_campaign_for_cli(
             cid
         )
 
