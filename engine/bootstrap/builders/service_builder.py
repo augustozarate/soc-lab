@@ -1,6 +1,3 @@
-from engine.suppression_engine import (
-    SuppressionEngine
-)
 
 from engine.services.incident_manager import (
     IncidentManager
@@ -291,9 +288,6 @@ def _build_threema_notification_adapter():
 
 def build_services(container):
 
-    container.suppressor = (
-        SuppressionEngine()
-    )
 
     container.incident_manager = (
         IncidentManager()

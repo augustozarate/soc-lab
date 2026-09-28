@@ -5,7 +5,6 @@ from engine.infrastructure.rule_watcher import RuleWatcher
 from engine.rule_engine import DetectionEngine
 from engine.mitre_mapper import MitreMapper
 
-from engine.adversary_simulator import AdversarySimulator
 
 
 def build_infrastructure(
@@ -56,12 +55,4 @@ def build_infrastructure(
 
     container.mitre_mapper = MitreMapper(
         mitre_file
-    )
-
-    # =====================================
-    # ADVERSARY SIMULATOR
-    # =====================================
-
-    container.simulator = AdversarySimulator(
-        stream_file
     )

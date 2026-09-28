@@ -18,9 +18,6 @@ from engine.orchestration.runtime.dlq.failed_task_store import (
     FailedTaskStore
 )
 
-from engine.orchestration.runtime.dlq.replay_engine import (
-    ReplayEngine
-)
 
 def build_runtime(
     container,
@@ -44,12 +41,6 @@ def build_runtime(
         )
     )
 
-    container.replay_engine = (
-        ReplayEngine(
-            scheduler=
-            container.scheduler
-        )
-    )
 
     container.retry_policy = (
         RetryPolicy(
