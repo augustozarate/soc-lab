@@ -2,11 +2,8 @@ import json
 import difflib
 import threading
 
-from engine.telemetry.metrics import metrics
 from engine.analysis.attack_view import render_story
-from engine.cli.console_io import console_lock
 from engine.cli.console_io import safe_print as print
-from engine.services.ai_analyst import AIAnalyst
 from engine.cli.command_parser import (
     CommandParser,
     UnknownCommandError,
@@ -186,7 +183,7 @@ class SOCConsole:
         }
 
         self.threat_graph = threat_graph
-        self.ai = ai_analyst or AIAnalyst()
+        self.ai = ai_analyst
         self.operator_console_controller = (
             operator_console_controller
         )
