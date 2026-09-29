@@ -2,5 +2,6 @@ PyYAML==6.0.1
 requests==2.31.0
 rich==13.7.1
 python-dotenv>=1.0,<2.0
+aiohttp>=3.7.3,<4.0
 threema.gateway==8.0.0
 reportlab==4.5.1
