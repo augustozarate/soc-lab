@@ -462,7 +462,7 @@ class ThreatIntel:
             "known_attack": False,
             "source": "heuristic"
         }
-    
+
     def learn_from_incident(self, ip, risk):
 
         if not ip:

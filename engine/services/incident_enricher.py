@@ -115,7 +115,7 @@ class IncidentEnricher:
             })
 
         return entities
-    
+
     # =========================
     # ENTITY CONTEXT
     # =========================

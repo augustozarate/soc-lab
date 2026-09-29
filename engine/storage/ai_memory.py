@@ -78,7 +78,7 @@ class AIMemory:
 
     def get_ip_context(self, ip):
         return self.memory["ips"].get(ip, {})
-    
+
     def update_from_incident(self, incident, analysis):
         ip = incident.get("ip")
 
