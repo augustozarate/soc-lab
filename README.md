@@ -76,6 +76,14 @@ python3 -m pip install -r requirements-dev.txt -c constraints-dev.txt
 The clean-environment contract has been tested using a newly created
 Python 3.12.3 virtual environment.
 
+Dependency ownership is intentionally split between intent and resolution:
+
+- `requirements.txt` and `requirements-dev.txt` are the human-maintained dependency intent.
+- `constraints.txt` and `constraints-dev.txt` capture the exact dependency resolution validated for reproducible installs.
+- the constraint files are currently validated for CPython 3.12 on Linux/WSL2 x86_64 and should not be treated as a universal cross-platform lock.
+
+When direct dependencies are added, removed, or upgraded, regenerate the matching constraint set from a clean environment, verify that the exact resolved versions still satisfy the declared requirements, run `pip check`, and execute the full test suite with warnings treated as errors before committing the refreshed constraints.
+
 ## Configuration
 
 Copy the environment template:
