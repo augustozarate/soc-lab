@@ -59,12 +59,18 @@ The current development baseline has been validated with:
 - python-dotenv 1.x
 - reportlab 4.5.1
 
-Install the declared Python dependencies with:
+Install the declared runtime dependencies using the tested constraint set:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt -c constraints.txt
+```
+
+For a development/test environment, install the development requirements with their matching constraint set:
+
+```bash
+python3 -m pip install -r requirements-dev.txt -c constraints-dev.txt
 ```
 
 The clean-environment contract has been tested using a newly created
