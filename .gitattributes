@@ -4,3 +4,12 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.ps1 text eol=lf
+
+# Remaining repository text formats
+.env.example text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+*.md text eol=lf
+*.sql text eol=lf
+*.txt text eol=lf
+*.sh text eol=lf
