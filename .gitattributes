@@ -1,2 +1,5 @@
 # Repository text normalization
 *.py text eol=lf
+.editorconfig text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
