@@ -109,6 +109,16 @@ repository.
 The `.gitignore` configuration excludes `.env` and local environment
 variants while explicitly allowing `.env.example`.
 
+### Automated Response
+
+Automated response behavior is configured through the environment template:
+
+- `RESPONSE_MODE` selects response behavior. Keep `simulate` enabled until the enforcement backend has been validated for the target environment.
+- `RESPONSE_PROTECTED_IPS` is a comma-separated allowlist of IPv4 targets that automated `BLOCK_IP` actions must never enforce against.
+- `RESPONSE_BLOCK_TTL_SECONDS` controls the lifetime, in seconds, of temporary automated IP blocks and must be greater than zero.
+
+The values in `.env.example` are laboratory defaults and examples; review them before enabling enforcement in another environment.
+
 ## Threat Intelligence
 
 Threat-intelligence enrichment supports:
@@ -226,6 +236,7 @@ mitre/          MITRE ATT&CK mappings
 modules/        Supporting PowerShell modules
 monitor/        SOC monitoring interface
 scripts/        Runtime and startup scripts
+tests/          Automated regression and behavior tests
 ```
 
 The `engine/` package contains the core application architecture,
