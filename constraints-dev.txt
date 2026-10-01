@@ -1,5 +1,5 @@
 # Reproducible development constraints
-# Validated on CPython 3.12 / Linux-WSL2 x86_64
+# Validated on CPython 3.12-3.14 / Linux-WSL2 x86_64
 # Install with: pip install -r requirements-dev.txt -c constraints-dev.txt
 
 aiohappyeyeballs==2.7.1

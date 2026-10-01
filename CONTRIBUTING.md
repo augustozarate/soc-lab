@@ -6,7 +6,7 @@ This repository is an educational and defensive security laboratory under active
 
 ## Development baseline
 
-The validated development baseline currently uses Python 3.12.3.
+The validated development baseline currently supports CPython 3.12, 3.13 and 3.14 on Linux x86_64.
 
 Create and activate a virtual environment:
 
