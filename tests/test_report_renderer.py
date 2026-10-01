@@ -538,3 +538,22 @@ def test_pdf_wrap_splits_long_unbroken_token():
         ) <= 495
         for line in lines
     )
+
+
+def test_pdf_wrap_preserves_winansi_unicode_glyphs():
+    renderer = ReportRenderer()
+
+    samples = [
+        "SOC Report — EXECUTIVE",
+        "• Generated: 2026-10-01",
+    ]
+
+    for value in samples:
+        lines = renderer._pdf_wrap(
+            value,
+            font_name="Helvetica",
+            font_size=9,
+            max_width=495,
+        )
+
+        assert " ".join(lines) == value

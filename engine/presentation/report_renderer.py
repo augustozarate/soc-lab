@@ -344,10 +344,10 @@ class ReportRenderer:
         # glyphs deterministically without loading
         # external font assets.
         safe = text.encode(
-            "latin-1",
+            "cp1252",
             errors="replace",
         ).decode(
-            "latin-1"
+            "cp1252"
         )
 
         words = safe.split()
