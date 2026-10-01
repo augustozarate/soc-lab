@@ -16,7 +16,4 @@ cd "${PROJECT_ROOT}"
 
 echo "Starting SOC Engine..."
 
-python3 -m engine.orchestration.soc_engine
-
-echo
-echo "Engine stopped."
+exec python3 -m engine.orchestration.soc_engine
