@@ -61,6 +61,22 @@ The current development baseline is validated on CPython 3.12, 3.13 and 3.14. Th
 - python-dotenv 1.x
 - reportlab 4.5.1
 
+### Native system dependency
+
+The Threema integration uses `threema.gateway`, which depends on
+`libnacl` and therefore requires the native libsodium shared library.
+
+On Debian/Ubuntu systems, install it before creating the Python
+environment:
+
+```bash
+sudo apt update
+sudo apt install libsodium23
+```
+
+This dependency is outside Python package metadata, so `pip check`
+cannot detect a missing libsodium shared library.
+
 Install the declared runtime dependencies using the tested constraint set:
 
 ```bash

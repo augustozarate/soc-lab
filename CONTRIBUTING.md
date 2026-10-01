@@ -8,7 +8,15 @@ This repository is an educational and defensive security laboratory under active
 
 The validated development baseline currently supports CPython 3.12, 3.13 and 3.14 on Linux x86_64.
 
-Create and activate a virtual environment:
+On Debian/Ubuntu, install the native libsodium runtime required by
+the Threema/libnacl dependency before creating the environment:
+
+```bash
+sudo apt update
+sudo apt install libsodium23
+```
+
+Then create and activate the virtual environment:
 
 ```bash
 python3 -m venv .venv
