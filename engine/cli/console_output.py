@@ -16,7 +16,6 @@ def start_output_worker():
 
             console.print()  # espacio limpio
             console.print(msg)
-            console.print("[dim]soc> [/dim]", end="")
 
     t = threading.Thread(target=worker, daemon=True)
     t.start()

@@ -8,7 +8,6 @@ def safe_print(*args, **kwargs):
     with console_lock:
         print("\n", end="")  # baja línea limpia
         print(*args, **kwargs)
-        print("soc> ", end="", flush=True)
 
 def color(text, c):
     colors = {
