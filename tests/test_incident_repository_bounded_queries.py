@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import json
 import sqlite3
 
@@ -16,6 +17,7 @@ class SQLiteTestDB:
             path
         )
 
+    @contextmanager
     def connect(self):
         connection = sqlite3.connect(
             self.path
@@ -25,7 +27,11 @@ class SQLiteTestDB:
             sqlite3.Row
         )
 
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
 
 def create_repository(

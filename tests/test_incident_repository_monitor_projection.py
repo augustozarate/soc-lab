@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import sqlite3
 
 from engine.storage.repositories.incident_repository import (
@@ -33,6 +34,7 @@ class SQLiteTestDB:
                 """
             )
 
+    @contextmanager
     def connect(self):
         connection = sqlite3.connect(
             self.path
@@ -42,7 +44,11 @@ class SQLiteTestDB:
             sqlite3.Row
         )
 
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
 
 def build_repository(
