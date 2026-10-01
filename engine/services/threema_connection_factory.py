@@ -4,6 +4,12 @@ from pathlib import Path
 
 import aiohttp
 
+from engine.compat.threema_python import (
+    install_threema_python_compat,
+)
+
+install_threema_python_compat()
+
 from threema.gateway import Connection
 from threema.gateway.key import Key
 

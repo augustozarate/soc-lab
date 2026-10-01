@@ -1,5 +1,11 @@
 import asyncio
 
+from engine.compat.threema_python import (
+    install_threema_python_compat,
+)
+
+install_threema_python_compat()
+
 from threema.gateway import e2e
 from threema.gateway.key import Key
 
