@@ -1205,7 +1205,8 @@ def test_show_incident_missing_result_preserved(
     ]
 
     assert (
-        "Incident not found"
+        "[ERROR] Incident 'INC-MISSING' not found. "
+        "Use 'incidents list' to view available incidents."
         in capsys.readouterr().out
     )
 
@@ -1243,6 +1244,36 @@ def test_cmd_story_uses_single_incident_controller(
     ]
 
 
+
+
+def test_cmd_story_missing_incident_reports_operator_error(
+    capsys,
+):
+    console, controller = (
+        make_single_incident_route_console()
+    )
+
+    console._query_campaign_for_cli = (
+        lambda _identifier: None
+    )
+
+    console.cmd_story(
+        ["INC-MISSING"],
+        {},
+        None,
+    )
+
+    assert controller.calls == [
+        "INC-MISSING"
+    ]
+
+    assert (
+        "[ERROR] Incident 'INC-MISSING' not found. "
+        "Use 'incidents list' to view available incidents."
+        in capsys.readouterr().out
+    )
+
+
 def test_graph_path_uses_single_incident_controller(
     monkeypatch,
 ):
@@ -1275,3 +1306,370 @@ def test_graph_path_uses_single_incident_controller(
     assert controller.calls == [
         "INC-GRAPH"
     ]
+
+def test_soc_console_accepts_persistent_monitor_session():
+
+    class Session:
+        pass
+
+    session = Session()
+
+    console = SOCConsole(
+        persistent_monitor_session=session,
+    )
+
+    assert (
+        console.persistent_monitor_session
+        is session
+    )
+
+
+def test_handle_command_refreshes_persistent_monitor_session():
+
+    class Session:
+
+        def __init__(self):
+            self.refresh_calls = 0
+
+        def refresh(self):
+            self.refresh_calls += 1
+
+    session = Session()
+
+    console = SOCConsole(
+        persistent_monitor_session=session,
+    )
+
+    calls = []
+
+    console._execute_command = (
+        lambda cmd: calls.append(cmd)
+    )
+
+    console.handle_command(
+        "health"
+    )
+
+    assert calls == [
+        "health"
+    ]
+
+    assert session.refresh_calls == 1
+
+
+def test_handle_command_refreshes_session_after_command_error(
+    capsys,
+):
+
+    class Session:
+
+        def __init__(self):
+            self.refresh_calls = 0
+
+        def refresh(self):
+            self.refresh_calls += 1
+
+    session = Session()
+
+    console = SOCConsole(
+        persistent_monitor_session=session,
+    )
+
+    def fail(_cmd):
+        raise RuntimeError(
+            "expected failure"
+        )
+
+    console._execute_command = fail
+
+    console.handle_command(
+        "health"
+    )
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "[ERROR] Command execution failed"
+        in output
+    )
+
+    assert session.refresh_calls == 1
+
+
+def test_handle_command_without_session_remains_supported():
+
+    console = SOCConsole()
+
+    calls = []
+
+    console._execute_command = (
+        lambda cmd: calls.append(cmd)
+    )
+
+    console.handle_command(
+        "health"
+    )
+
+    assert calls == [
+        "health"
+    ]
+
+def test_interactive_start_owns_persistent_session_lifecycle(
+    monkeypatch,
+):
+
+    class Session:
+
+        def __init__(self):
+            self.start_calls = 0
+            self.stop_calls = 0
+
+        def start(self):
+            self.start_calls += 1
+
+        def stop(self):
+            self.stop_calls += 1
+
+    session = Session()
+
+    console = SOCConsole(
+        persistent_monitor_session=session,
+    )
+
+    commands = []
+
+    console.handle_command = (
+        lambda command: commands.append(
+            command
+        )
+    )
+
+    responses = iter(
+        [
+            "health",
+        ]
+    )
+
+    def fake_input(_prompt):
+        try:
+            return next(
+                responses
+            )
+        except StopIteration:
+            raise EOFError
+
+    monkeypatch.setattr(
+        "builtins.input",
+        fake_input,
+    )
+
+    console.start()
+
+    assert session.start_calls == 1
+    assert session.stop_calls == 1
+
+    assert commands == [
+        "health"
+    ]
+
+
+def test_interactive_start_without_session_remains_supported(
+    monkeypatch,
+):
+
+    console = SOCConsole()
+
+    def fake_input(_prompt):
+        raise EOFError
+
+    monkeypatch.setattr(
+        "builtins.input",
+        fake_input,
+    )
+
+    console.start()
+
+def test_handle_command_uses_session_command_output_context():
+
+    events = []
+
+    class CommandOutput:
+
+        def __enter__(self):
+            events.append(
+                "enter"
+            )
+
+        def __exit__(
+            self,
+            exc_type,
+            exc,
+            tb,
+        ):
+            events.append(
+                "exit"
+            )
+
+    class Session:
+
+        def command_output(self):
+            return CommandOutput()
+
+        def refresh(self):
+            events.append(
+                "refresh"
+            )
+
+    console = SOCConsole(
+        persistent_monitor_session=Session(),
+    )
+
+    def execute(command):
+        events.append(
+            (
+                "execute",
+                command,
+            )
+        )
+
+    console._execute_command = execute
+
+    console.handle_command(
+        "health"
+    )
+
+    assert events == [
+        "enter",
+        (
+            "execute",
+            "health",
+        ),
+        "exit",
+        "refresh",
+    ]
+
+
+def test_handle_command_exits_output_context_before_error_refresh(
+    capsys,
+):
+
+    events = []
+
+    class CommandOutput:
+
+        def __enter__(self):
+            events.append(
+                "enter"
+            )
+
+        def __exit__(
+            self,
+            exc_type,
+            exc,
+            tb,
+        ):
+            events.append(
+                "exit"
+            )
+
+    class Session:
+
+        def command_output(self):
+            return CommandOutput()
+
+        def refresh(self):
+            events.append(
+                "refresh"
+            )
+
+    console = SOCConsole(
+        persistent_monitor_session=Session(),
+    )
+
+    def fail(_command):
+        events.append(
+            "execute"
+        )
+        raise RuntimeError(
+            "expected failure"
+        )
+
+    console._execute_command = fail
+
+    console.handle_command(
+        "health"
+    )
+
+    output = (
+        capsys
+        .readouterr()
+        .out
+    )
+
+    assert (
+        "[ERROR] Command execution failed"
+        in output
+    )
+
+    assert events == [
+        "enter",
+        "execute",
+        "exit",
+        "refresh",
+    ]
+
+
+def test_monitor_command_does_not_nested_render_with_persistent_session():
+
+    class MonitorController:
+
+        def __init__(self):
+            self.render_calls = 0
+
+        def render(self):
+            self.render_calls += 1
+            raise AssertionError(
+                "persistent monitor must not nested-render"
+            )
+
+    class Session:
+        pass
+
+    controller = MonitorController()
+
+    console = SOCConsole(
+        monitor_console_controller=controller,
+        persistent_monitor_session=Session(),
+    )
+
+    result = console.show_monitor_console()
+
+    assert result is None
+    assert controller.render_calls == 0
+
+
+def test_monitor_command_keeps_legacy_render_without_persistent_session():
+
+    class MonitorController:
+
+        def __init__(self):
+            self.render_calls = 0
+
+        def render(self):
+            self.render_calls += 1
+            return None
+
+    controller = MonitorController()
+
+    console = SOCConsole(
+        monitor_console_controller=controller,
+    )
+
+    result = console.show_monitor_console()
+
+    assert result is None
+    assert controller.render_calls == 1

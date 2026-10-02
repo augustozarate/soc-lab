@@ -466,3 +466,76 @@ def test_channel_color_is_not_only_signal():
         "INERT",
     ):
         assert label in rendered
+
+def test_renderer_builds_single_dashboard_renderable():
+    renderer, _ = make_renderer()
+
+    dashboard = renderer.build_dashboard(
+        monitor_snapshot()
+    )
+
+    from rich.console import Group
+
+    assert isinstance(
+        dashboard,
+        Group,
+    )
+
+
+def test_composed_dashboard_preserves_monitor_sections():
+    renderer, output = make_renderer()
+
+    dashboard = renderer.build_dashboard(
+        monitor_snapshot()
+    )
+
+    renderer.console.print(
+        dashboard
+    )
+
+    rendered = output.getvalue()
+
+    for label in (
+        "SOC-LAB // MONITOR CONSOLE",
+        "RUNTIME",
+        "SOC SUMMARY",
+        "ACTIVITY",
+        "INCIDENT FEED",
+        "CHANNELS",
+    ):
+        assert label in rendered
+
+
+def test_dashboard_can_include_command_output_panel():
+    from rich.console import Console
+
+    from engine.presentation.monitor_console import (
+        MonitorConsoleRenderer,
+    )
+
+    console = Console(
+        record=True,
+        width=120,
+    )
+
+    renderer = MonitorConsoleRenderer(
+        console=console,
+    )
+
+    dashboard = renderer.build_dashboard(
+        {},
+        command_output=(
+            "{'status': 'HEALTHY', "
+            "'reasons': []}"
+        ),
+    )
+
+    console.print(
+        dashboard
+    )
+
+    rendered = console.export_text()
+
+    assert "COMMAND OUTPUT" in rendered
+    assert "'status': 'HEALTHY'" in rendered
+    assert "'reasons': []" in rendered

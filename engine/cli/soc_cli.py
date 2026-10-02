@@ -117,6 +117,7 @@ class SOCConsole:
         monitor_console_controller=None,
         report_application_service=None,
         campaign_console_controller=None,
+        persistent_monitor_session=None,
     ):
         self.routes = {
             # BASE COMMANDS
@@ -195,6 +196,9 @@ class SOCConsole:
         )
         self.campaign_console_controller = (
             campaign_console_controller
+        )
+        self.persistent_monitor_session = (
+            persistent_monitor_session
         )
         self.parser = CommandParser(COMMAND_TREE)
         self._thread = None
@@ -512,6 +516,16 @@ class SOCConsole:
                 "Monitor Console is unavailable"
             )
 
+        if (
+            getattr(
+                self,
+                "persistent_monitor_session",
+                None,
+            )
+            is not None
+        ):
+            return None
+
         return (
             self.monitor_console_controller
             .render()
@@ -585,22 +599,42 @@ class SOCConsole:
         readline.parse_and_bind("tab: complete")
         readline.set_completer(completer)
 
-        while True:
-            try:
-                cmd = input("soc> ").strip()
+        session = getattr(
+            self,
+            "persistent_monitor_session",
+            None,
+        )
 
-                if not cmd:
+        session_started = False
+
+        try:
+            if session is not None:
+                session.start()
+                session_started = True
+
+            while True:
+                try:
+                    cmd = input("soc> ").strip()
+
+                    if not cmd:
+                        continue
+
+                    self.handle_command(cmd)
+
+                except KeyboardInterrupt:
+                    print("\n^C (cancelled)")
                     continue
 
-                self.handle_command(cmd)
+                except EOFError:
+                    print("\nExiting SOC console")
+                    break
 
-            except KeyboardInterrupt:
-                print("\n^C (cancelled)")
-                continue
-
-            except EOFError:
-                print("\nExiting SOC console")
-                break
+        finally:
+            if (
+                session is not None
+                and session_started
+            ):
+                session.stop()
 
     # =========================
     # ASYNC LIFECYCLE
@@ -643,34 +677,62 @@ class SOCConsole:
         return cmds
 
     def handle_command(self, cmd):
+        session = getattr(
+            self,
+            "persistent_monitor_session",
+            None,
+        )
+
+        def execute():
+            try:
+                self._execute_command(cmd)
+
+            except UnknownCommandError as exc:
+                unknown = str(
+                    exc
+                )
+
+                suggestion = self.suggest_command(
+                    unknown
+                )
+
+                if suggestion:
+                    print(
+                        f"[ERROR] Unknown command "
+                        f"'{unknown}'. Did you mean "
+                        f"'{suggestion}'?"
+                    )
+                else:
+                    print(
+                        f"[ERROR] Unknown command "
+                        f"'{unknown}'."
+                    )
+
+            except Exception:
+                print(
+                    "[ERROR] Command execution failed"
+                )
+
+        command_output = (
+            getattr(
+                session,
+                "command_output",
+                None,
+            )
+            if session is not None
+            else None
+        )
+
         try:
-            self._execute_command(cmd)
-
-        except UnknownCommandError as exc:
-            unknown = str(
-                exc
-            )
-
-            suggestion = self.suggest_command(
-                unknown
-            )
-
-            if suggestion:
-                print(
-                    f"[ERROR] Unknown command "
-                    f"'{unknown}'. Did you mean "
-                    f"'{suggestion}'?"
-                )
+            if command_output is None:
+                execute()
             else:
-                print(
-                    f"[ERROR] Unknown command "
-                    f"'{unknown}'."
-                )
+                with command_output():
+                    execute()
 
-        except Exception:
-            print(
-                "[ERROR] Command execution failed"
-            )
+        finally:
+            if session is not None:
+                session.refresh()
 
     @staticmethod
     def parse_filters(args):
@@ -1132,7 +1194,10 @@ class SOCConsole:
         if inc:
             print(json.dumps(inc, indent=2))
         else:
-            print("Incident not found")
+            print(
+                f"[ERROR] Incident '{incident_id}' not found. "
+                "Use 'incidents list' to view available incidents."
+            )
 
     # =========================
 
@@ -1307,6 +1372,12 @@ class SOCConsole:
                 )
                 return
 
+            print(
+                f"[ERROR] Incident '{incident_id}' not found. "
+                "Use 'incidents list' to view available incidents."
+            )
+            return
+
         story = incident.get("attack_story")
 
         if not story:
@@ -1364,7 +1435,8 @@ class SOCConsole:
 
         if not campaign:
             print(
-                "Campaign not found"
+                f"[ERROR] Campaign '{cid}' not found. "
+                "Use 'campaign list' to view available campaigns."
             )
             return
 
@@ -1468,7 +1540,8 @@ class SOCConsole:
 
         if not campaign:
             print(
-                "Campaign not found"
+                f"[ERROR] Campaign '{cid}' not found. "
+                "Use 'campaign list' to view available campaigns."
             )
             return
 

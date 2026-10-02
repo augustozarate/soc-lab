@@ -42,6 +42,17 @@ class MonitorConsoleRenderer:
         self,
         snapshot,
     ):
+        self.console.print(
+            self.build_dashboard(
+                snapshot
+            )
+        )
+
+    def build_dashboard(
+        self,
+        snapshot,
+        command_output=None,
+    ):
         operator = snapshot.get(
             "operator",
             {},
@@ -62,13 +73,10 @@ class MonitorConsoleRenderer:
             {},
         )
 
-        self.console.print(
+        renderables = [
             self.build_header(
                 health
-            )
-        )
-
-        self.console.print(
+            ),
             self._panel_pair(
                 self.build_runtime(
                     runtime,
@@ -77,10 +85,7 @@ class MonitorConsoleRenderer:
                 self.build_summary(
                     operator
                 ),
-            )
-        )
-
-        self.console.print(
+            ),
             self._panel_pair(
                 self.build_activity(
                     runtime
@@ -88,13 +93,21 @@ class MonitorConsoleRenderer:
                 self.build_incidents(
                     operator
                 ),
-            )
-        )
-
-        self.console.print(
+            ),
             self.build_channels(
                 channels
+            ),
+        ]
+
+        if command_output:
+            renderables.append(
+                self.build_command_output(
+                    command_output
+                )
             )
+
+        return Group(
+            *renderables
         )
 
     def build_header(
@@ -424,6 +437,21 @@ class MonitorConsoleRenderer:
         return Panel(
             table,
             title="CHANNELS",
+            title_align="left",
+            border_style="cyan",
+        )
+
+    def build_command_output(
+        self,
+        command_output,
+    ):
+        return Panel(
+            Text(
+                str(
+                    command_output
+                )
+            ),
+            title="COMMAND OUTPUT",
             title_align="left",
             border_style="cyan",
         )

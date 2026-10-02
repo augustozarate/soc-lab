@@ -94,6 +94,18 @@ class SOCRuntime:
 
         while self.running:
 
+            cli_is_alive = getattr(
+                self.cli,
+                "is_alive",
+                None,
+            )
+
+            if (
+                cli_is_alive is not None
+                and not cli_is_alive()
+            ):
+                break
+
             try:
 
                 events = (

@@ -307,7 +307,10 @@ def test_campaign_show_missing_uses_controller(
     )
 
     assert (
-        "Campaign not found"
+        (
+            "[ERROR] Campaign 'CMP-MISSING' not found. "
+            "Use 'campaign list' to view available campaigns."
+        )
         in output
     )
 
@@ -387,7 +390,10 @@ def test_campaign_graph_missing_uses_controller(
     ]
 
     assert (
-        "Campaign not found"
+        (
+            "[ERROR] Campaign 'CMP-MISSING' not found. "
+            "Use 'campaign list' to view available campaigns."
+        )
         in (
             capsys
             .readouterr()

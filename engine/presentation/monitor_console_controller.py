@@ -29,6 +29,25 @@ class MonitorConsoleController:
 
         return None
 
+    def build_dashboard(
+        self,
+        incident_limit=10,
+        command_output=None,
+    ):
+        snapshot = self.read_model.snapshot(
+            incident_limit=incident_limit
+        )
+
+        if command_output is None:
+            return self.renderer.build_dashboard(
+                snapshot
+            )
+
+        return self.renderer.build_dashboard(
+            snapshot,
+            command_output=command_output,
+        )
+
     def query_health(
         self,
     ):

@@ -736,3 +736,123 @@ def test_query_incident_requires_query_model():
         raise AssertionError(
             "RuntimeError was not raised"
         )
+
+def test_controller_build_dashboard_returns_renderer_renderable():
+
+    class ReadModel:
+
+        def __init__(self):
+            self.calls = []
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            self.calls.append(
+                incident_limit
+            )
+
+            return {
+                "health": {
+                    "status": "HEALTHY",
+                },
+            }
+
+    class Renderer:
+
+        def __init__(self):
+            self.snapshots = []
+
+        def build_dashboard(
+            self,
+            snapshot,
+        ):
+            self.snapshots.append(
+                snapshot
+            )
+
+            return "DASHBOARD"
+
+    read_model = ReadModel()
+    renderer = Renderer()
+
+    controller = MonitorConsoleController(
+        read_model=read_model,
+        renderer=renderer,
+    )
+
+    result = controller.build_dashboard(
+        incident_limit=7
+    )
+
+    assert result == "DASHBOARD"
+
+    assert read_model.calls == [
+        7
+    ]
+
+    assert renderer.snapshots == [
+        {
+            "health": {
+                "status": "HEALTHY",
+            },
+        }
+    ]
+
+
+def test_controller_build_dashboard_passes_command_output():
+
+    from engine.presentation.monitor_console_controller import (
+        MonitorConsoleController,
+    )
+
+    class ReadModel:
+
+        def snapshot(
+            self,
+            incident_limit=10,
+        ):
+            return {
+                "incident_limit": incident_limit,
+            }
+
+    class Renderer:
+
+        def __init__(self):
+            self.calls = []
+
+        def build_dashboard(
+            self,
+            snapshot,
+            command_output=None,
+        ):
+            self.calls.append(
+                (
+                    snapshot,
+                    command_output,
+                )
+            )
+
+            return "DASHBOARD"
+
+    renderer = Renderer()
+
+    controller = MonitorConsoleController(
+        read_model=ReadModel(),
+        renderer=renderer,
+    )
+
+    result = controller.build_dashboard(
+        command_output="HEALTH RESULT",
+    )
+
+    assert result == "DASHBOARD"
+
+    assert renderer.calls == [
+        (
+            {
+                "incident_limit": 10,
+            },
+            "HEALTH RESULT",
+        )
+    ]

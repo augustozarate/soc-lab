@@ -3,6 +3,9 @@ import os
 from engine.bootstrap.container import Container
 from engine.orchestration.runtime.soc_runtime import SOCRuntime
 from engine.cli.soc_cli import SOCConsole
+from engine.presentation.persistent_monitor_session import (
+    build_persistent_monitor_session,
+)
 
 from engine.presentation.report_application_service import (
     ReportApplicationService,
@@ -140,6 +143,12 @@ def create_app():
         )
     )
 
+    persistent_monitor_session = (
+        build_persistent_monitor_session(
+            container.monitor_console_controller
+        )
+    )
+
     cli = SOCConsole(
         threat_graph=container.threat_graph,
         ai_analyst=container.ai_analyst,
@@ -154,7 +163,10 @@ def create_app():
         ),
         campaign_console_controller=(
             container.campaign_console_controller
-        )
+        ),
+        persistent_monitor_session=(
+            persistent_monitor_session
+        ),
     )
 
     runtime = SOCRuntime(
