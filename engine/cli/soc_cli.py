@@ -664,6 +664,17 @@ class SOCConsole:
             and self._thread.is_alive()
         )
 
+    def refresh_monitor(self):
+
+        session = getattr(
+            self,
+            "persistent_monitor_session",
+            None,
+        )
+
+        if session is not None:
+            session.refresh()
+
     # =========================
 
     @staticmethod

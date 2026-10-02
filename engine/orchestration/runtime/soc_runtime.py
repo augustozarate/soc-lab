@@ -145,6 +145,15 @@ class SOCRuntime:
                     self.container.reader.commit()
                     self._update_runtime_gauges()
 
+                    refresh_monitor = getattr(
+                        self.cli,
+                        "refresh_monitor",
+                        None,
+                    )
+
+                    if refresh_monitor is not None:
+                        refresh_monitor()
+
                 (
                     self.container
                     .response_block_expiration
