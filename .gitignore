@@ -55,7 +55,7 @@ Thumbs.db
 # ==========================================
 # SOC runtime state / generated telemetry
 # ==========================================
-engine/audit.log
+audit.log
 engine/data/ai_memory.json
 engine/data/threat_intel.json
 
