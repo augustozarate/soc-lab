@@ -51,12 +51,20 @@ class ReportExporter:
             exist_ok=True,
         )
 
-        destination = (
-            directory
-            / (
+        filename = (
+            safe_basename
+            if safe_basename.lower().endswith(
+                extension
+            )
+            else (
                 safe_basename
                 + extension
             )
+        )
+
+        destination = (
+            directory
+            / filename
         ).resolve()
 
         self._assert_within_output_directory(

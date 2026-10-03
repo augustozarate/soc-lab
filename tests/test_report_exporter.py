@@ -546,3 +546,71 @@ def test_text_formats_still_reject_bytes(
             raise AssertionError(
                 "Binary text report accepted"
             )
+
+
+def test_export_json_does_not_duplicate_existing_extension(
+    tmp_path,
+):
+
+    target = exporter(
+        tmp_path
+    ).export(
+        '{"ok": true}\n',
+        "json",
+        "soc_report.json",
+    )
+
+    assert target.name == (
+        "soc_report.json"
+    )
+
+
+def test_export_markdown_does_not_duplicate_existing_extension(
+    tmp_path,
+):
+
+    target = exporter(
+        tmp_path
+    ).export(
+        "# Report\n",
+        "markdown",
+        "soc_report.md",
+    )
+
+    assert target.name == (
+        "soc_report.md"
+    )
+
+
+def test_export_pdf_does_not_duplicate_existing_extension(
+    tmp_path,
+):
+
+    target = exporter(
+        tmp_path
+    ).export(
+        b"%PDF-1.4\n% test\n",
+        "pdf",
+        "soc_report.pdf",
+    )
+
+    assert target.name == (
+        "soc_report.pdf"
+    )
+
+
+def test_export_preserves_different_existing_extension(
+    tmp_path,
+):
+
+    target = exporter(
+        tmp_path
+    ).export(
+        '{"ok": true}\n',
+        "json",
+        "report.exe",
+    )
+
+    assert target.name == (
+        "report.exe.json"
+    )
