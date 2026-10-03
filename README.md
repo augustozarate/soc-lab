@@ -13,11 +13,60 @@ runtime observability.
 
 ## Architecture
 
-The runtime is assembled through the application factory and dependency
-container.
+SOC Lab uses a modular event-processing architecture for defensive
+security experimentation, SOC workflow validation and incident-response
+simulation.
 
-At a high level, events move through a worker-based processing
-architecture containing specialized pipelines for:
+At a high level:
+
+    Windows Events ──► Windows Collector ──┐
+                                          │
+    Linux OpenSSH ─► systemd-journald      │
+                         │                 │
+                         ▼                 │
+                  Linux SSH Collector ─────┘
+                         │
+                         ▼
+                  logs/stream.jsonl
+                         │
+                         ▼
+                     EventReader
+              durable byte checkpoint
+                         │
+              ┌──────────┴──────────┐
+              ▼                     ▼
+         Rule Engine          Behavior / UEBA
+              └──────────┬──────────┘
+                         ▼
+                       Alerts
+                         │
+                         ▼
+                  MITRE ATT&CK
+                         │
+                         ▼
+                     Incidents
+                         │
+           ┌─────────────┼─────────────┐
+           ▼             ▼             ▼
+     Threat Intel   Correlation   Risk Analysis
+           └─────────────┼─────────────┘
+                         ▼
+                      Campaigns
+                         │
+                         ▼
+                Response / Simulation
+                         │
+                         ▼
+                     Persistence
+                         │
+              ┌──────────┴──────────┐
+              ▼                     ▼
+     Persistent Monitor          SOC CLI
+                                      │
+                                      ▼
+                             JSON / Markdown / PDF
+
+The runtime uses specialized pipelines for:
 
 - incident processing
 - threat-intelligence enrichment
@@ -43,10 +92,185 @@ The repository also contains components for:
 - threat graphs
 - runtime metrics
 - health assessment
-- SOC monitoring
+- persistent SOC monitoring
 - bounded read-only query models
 - executive, technical and advanced SOC reporting
 - JSON, Markdown and native PDF report export
+
+### Linux SSH ingestion
+
+Linux failed-authentication events can be collected directly from the
+OpenSSH systemd journal.
+
+The Linux SSH collector:
+
+- reads systemd-journald using journal cursors
+- establishes a first-run baseline without replaying historical events
+- persists its cursor atomically
+- normalizes supported OpenSSH failed-login records
+- generates deterministic event record IDs
+- avoids duplicate stream events when a journal entry is replayed
+- advances the cursor for processed journal records
+- supports both IPv4 and IPv6 source addresses
+
+The collector writes normalized events to:
+
+    logs/stream.jsonl
+
+Its runtime checkpoint is stored in:
+
+    data/linux_ssh_collector_checkpoint.json
+
+Run one collection cycle:
+
+    python collectors/linux_ssh_collector.py --once
+
+Run continuously:
+
+    python collectors/linux_ssh_collector.py --interval 2
+
+### Detection and behavioral analysis
+
+Events can be evaluated by both rule-based detection and behavioral
+analysis.
+
+Structured failed-login events use:
+
+    type   = login_failed
+    action = login_failed
+
+The current laboratory UEBA brute-force configuration detects five
+failed login events from the same source within a 60-second window and
+produces a HIGH-severity UEBA_BRUTE_FORCE alert.
+
+Detected brute-force activity can be mapped to:
+
+    MITRE ATT&CK
+    Tactic: Credential Access
+    Technique: T1110 - Brute Force
+
+### Persistent Monitor
+
+The Persistent Monitor provides a read-only live operational view of SOC
+state, including:
+
+- runtime health
+- uptime
+- queue depth
+- event-reader checkpoint lag
+- event count
+- generated alert count
+- task activity
+- incident count
+- high/critical incident count
+- campaign count
+- maximum risk
+- recent incident feed
+- notification-channel status
+
+Monitor refresh is driven by committed runtime event batches rather than
+a separate polling thread.
+
+### Automated response
+
+The response engine currently implements:
+
+    BLOCK_IP
+    UNBLOCK_IP
+    NOTIFY_SOC
+    ENABLE_MFA
+
+Response behavior can run in simulation mode for laboratory validation.
+
+Playbooks can reference additional actions such as ISOLATE_HOST and
+COLLECT_FORENSICS; those declarations should not be treated as active
+response-engine capabilities unless matching implementations are added
+and validated.
+
+### Interactive SOC console
+
+Common investigation commands include:
+
+    monitor
+    health
+    channels
+    metrics
+
+    incidents list
+    incidents recent
+    incidents recent --severity HIGH
+    incidents show <incident_id>
+
+    campaign list
+    campaign show <campaign_id>
+    campaign graph <campaign_id>
+
+    story show <incident_id>
+    graph <incident_id>
+
+    ai ask <incident_id> <question>
+
+    report render technical
+    report export technical soc-report --format pdf
+
+The CLI also supports composable data operations such as:
+
+    incidents list | util where severity=HIGH
+    incidents list | util fields id ip severity risk_score
+    incidents list | util sort risk_score | util head 3
+
+For the complete command, pipeline, shortcut and reporting reference,
+see docs/CLI_REFERENCE.md.
+
+### Validated Linux SSH flow
+
+A real isolated-lab acceptance scenario has been validated end to end:
+
+    Parrot VM
+       │
+       │ failed SSH authentication
+       ▼
+    Ubuntu OpenSSH
+       │
+       ▼
+    systemd-journald
+       │
+       ▼
+    Linux SSH Collector
+       │
+       ▼
+    logs/stream.jsonl
+       │
+       ▼
+    EventReader
+       │
+       ▼
+    Behavior Engine
+       │
+       │ 5 failures within 60 seconds
+       ▼
+    UEBA_BRUTE_FORCE
+       │
+       ▼
+    MITRE ATT&CK T1110
+       │
+       ▼
+    HIGH Incident
+       │
+       ▼
+    Campaign Correlation
+       │
+       ▼
+    Simulated Response
+       │
+       ▼
+    SQLite Persistence
+       │
+       ▼
+    Persistent Monitor / CLI / Reporting
+
+The acceptance run completed with the event-reader checkpoint at the end
+of the stream and zero checkpoint lag.
 
 ## Requirements
 
