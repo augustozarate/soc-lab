@@ -71,3 +71,5 @@ logs/archive/
 
 # Event reader runtime checkpoint
 data/event_reader_checkpoint.json
+
+data/linux_ssh_collector_checkpoint.json
